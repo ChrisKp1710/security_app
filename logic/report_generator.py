@@ -4,7 +4,7 @@ from datetime import datetime
 
 def generate_reports(data, formats, folder_path):
     """
-    Genera i report nei formati richiesti all'interno della cartella specificata.
+    Genera i report nei formati richiesti con codifica UTF-8 per Safari e QuickLook.
     """
     target_clean = data["target"].replace(".", "_")
     timestamp_slug = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -12,21 +12,22 @@ def generate_reports(data, formats, folder_path):
     
     generated_files = []
 
+    # Salvataggio con encoding="utf-8" esplicito per compatibilità icone
     if "json" in formats:
         path = os.path.join(folder_path, f"{base_name}.json")
-        with open(path, "w") as f:
-            json.dump(data, f, indent=4)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=4, ensure_ascii=False)
         generated_files.append(path)
 
     if "txt" in formats:
         path = os.path.join(folder_path, f"{base_name}.txt")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(_generate_txt_content(data))
         generated_files.append(path)
 
     if "html" in formats:
         path = os.path.join(folder_path, f"{base_name}.html")
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(_generate_html_content(data))
         generated_files.append(path)
 
@@ -65,34 +66,45 @@ def _generate_txt_content(data):
     return "\n".join(lines)
 
 def _generate_html_content(data):
-    # CSS per rendere il report bellissimo e moderno
+    # CSS Flexbox (Il design che ti piaceva) con fix icone
     css = """
-    body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0F172A; color: #E2E8F0; margin: 0; padding: 40px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0F172A; color: #E2E8F0; margin: 0; padding: 40px; }
     .container { max-width: 900px; margin: auto; background: #1E293B; padding: 40px; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
     h1 { color: #38BDF8; border-bottom: 2px solid #38BDF8; padding-bottom: 10px; margin-bottom: 30px; }
     h2 { color: #4ADE80; margin-top: 40px; border-left: 5px solid #4ADE80; padding-left: 15px; }
+    
     .stat-box { display: flex; gap: 20px; margin-bottom: 30px; }
     .stat { background: #0F172A; padding: 20px; border-radius: 12px; flex: 1; text-align: center; }
-    .stat-val { font-size: 24px; font-weight: bold; color: #38BDF8; }
+    .stat-label { font-size: 12px; color: #94A3B8; text-transform: uppercase; margin-bottom: 5px; }
+    .stat-val { font-size: 20px; font-weight: bold; color: #38BDF8; }
+    
     table { width: 100%; border-collapse: collapse; margin-top: 20px; }
     th, td { padding: 12px; text-align: left; border-bottom: 1px solid #334155; }
     th { background: #0F172A; color: #94A3B8; }
+    
     .tag { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: bold; text-transform: uppercase; }
     .tag-red { background: #7F1D1D; color: #F87171; }
     .tag-yellow { background: #78350F; color: #FBBF24; }
     .tag-green { background: #064E3B; color: #34D399; }
+    
+    ul { list-style: none; padding: 0; }
+    li { background: #0F172A; margin: 8px 0; padding: 12px; border-radius: 10px; border-left: 3px solid #38BDF8; }
     .footer { margin-top: 50px; font-size: 12px; color: #64748B; text-align: center; border-top: 1px solid #334155; padding-top: 20px; }
     """
     
     html = f"""
+    <!DOCTYPE html>
     <html>
-    <head><style>{css}</style></head>
+    <head>
+        <meta charset="UTF-8">
+        <style>{css}</style>
+    </head>
     <body>
         <div class="container">
             <h1>🛡️ Security Audit Report</h1>
             <div class="stat-box">
                 <div class="stat">
-                    <div class="stat-label">Target</div>
+                    <div class="stat-label">Target Host</div>
                     <div class="stat-val">{data['target']}</div>
                 </div>
                 <div class="stat">
@@ -100,48 +112,50 @@ def _generate_html_content(data):
                     <div class="stat-val">{data['recon']['score']}/6</div>
                 </div>
                 <div class="stat">
-                    <div class="stat-label">Timestamp</div>
+                    <div class="stat-label">Scan Date</div>
                     <div class="stat-val" style="font-size: 14px;">{data['timestamp']}</div>
                 </div>
             </div>
 
-            <h2>🌐 Network Scan Results</h2>
+            <h2>🌐 Network Analysis</h2>
             <table>
                 <thead>
-                    <tr><th>Port</th><th>Risk</th><th>Service / Banner</th></tr>
+                    <tr><th>Port</th><th>Risk</th><th>Service & Banner</th></tr>
                 </thead>
                 <tbody>
     """
     
     for s in data["scans"]:
         risk_class = "tag-red" if s['risk'] == "ROSSO" else ("tag-yellow" if s['risk'] == "GIALLO" else "tag-green")
-        html += f"<tr><td>{s['port']}</td><td><span class='tag {risk_class}'>{s['risk']}</span></td><td>{s['service']}</td></tr>"
+        html += f"<tr><td><b>{s['port']}</b></td><td><span class='tag {risk_class}'>{s['risk']}</span></td><td>{s['service']}</td></tr>"
     
     html += """
                 </tbody>
             </table>
 
-            <h2>🕵️ Web Reconnaissance (Headers)</h2>
+            <h2>🕵️ Security Headers</h2>
             <ul>
     """
     for h in data["recon"]["headers"]:
         html += f"<li>{h}</li>"
-    
     html += "</ul>"
 
+    if data["recon"]["robots"]:
+        html += "<h2>🤖 Robots.txt Discovery</h2><ul>"
+        for r in data["recon"]["robots"]:
+            html += f"<li>Disallow: {r}</li>"
+        html += "</ul>"
+
     if data["directories"]:
-        html += """
-            <h2>📂 Identified Directories</h2>
-            <ul>
-        """
+        html += "<h2>📂 Identified Resources</h2><ul>"
         for d in data["directories"]:
             html += f"<li>{d}</li>"
         html += "</ul>"
 
     html += f"""
             <div class="footer">
-                Generated by Security Toolkit Pro v5.0<br>
-                Educational Audit Report - {datetime.now().year}
+                <strong>Security Toolkit Pro v5.0</strong><br>
+                Educational Security Suite &copy; {datetime.now().year}
             </div>
         </div>
     </body>
