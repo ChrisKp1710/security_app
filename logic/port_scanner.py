@@ -40,20 +40,24 @@ def scansione_porte(target, range_porte, callback_progress=None):
         try:
             res = s.connect_ex((ip, porta))
             if res == 0:
-                # Porta Aperta -> Banner Grabbing
+                # Porta Aperta -> Banner Grabbing Robusto
                 banner = "Nessun banner"
                 try:
-                    s.send(b'\r\n') 
-                    banner = s.recv(1024).decode().strip()
+                    s.send(b'HEAD / HTTP/1.0\r\n\r\n') # Tenta di stimolare una risposta
+                    raw_banner = s.recv(1024)
+                    # Decodifica sicura ignorando byte non validi
+                    banner = raw_banner.decode('utf-8', errors='ignore').strip()
                 except:
                     pass
                 
-                # Cleanup caratteri strani nel banner
-                banner = ''.join(c for c in banner if c.isprintable())
+                # Cleanup: tieni solo caratteri stampabili e limita lunghezza
+                banner = ''.join(c for c in banner if c.isprintable())[:50]
 
                 colore = RISCHIO_PORTE.get(porta, "GIALLO")
-                if porta == 80: banner = "HTTP Web Server"
-                if porta == 443: banner = "HTTPS Web Server"
+                
+                # Sovrascrivi banner comuni per chiarezza
+                if porta == 80 and not banner: banner = "HTTP Web Server"
+                if porta == 443 and not banner: banner = "HTTPS Web Server"
                 
                 risultati.append((porta, colore, banner))
         except:
