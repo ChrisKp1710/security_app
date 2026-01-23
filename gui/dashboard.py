@@ -8,6 +8,7 @@ from logic.hash_checker import calcola_hash_file
 from logic.port_scanner import scansione_porte, ottieni_ip
 from logic.dir_finder import cerca_directory_nascoste
 from logic.web_recon import analizza_headers, analizza_robots
+from logic.password_strength import calcola_robustezza
 
 # --- CONFIGURAZIONE UI/UX THEME ---
 ctk.set_appearance_mode("Dark")  # Forza Dark Mode
@@ -130,38 +131,83 @@ class Dashboard(ctk.CTk):
     # 🔐 CRYPTO LAB UI
     # =========================================================================
     def setup_crypto_ui(self):
-        # Container centrale
-        center_frame = ctk.CTkFrame(self.tab_tools, fg_color="transparent")
-        center_frame.pack(fill="both", expand=True, padx=40, pady=20)
+        # Usiamo uno Scrollable Frame per contenere tutto se serve spazio
+        container = ctk.CTkScrollableFrame(self.tab_tools, fg_color="transparent")
+        container.pack(fill="both", expand=True, padx=40, pady=20)
 
-        # -- Password Gen --
-        card_pwd = ctk.CTkFrame(center_frame, corner_radius=15)
+        # --- SECTION 1: PASSWORD STRENGTH METER (NEW) ---
+        card_meter = ctk.CTkFrame(container, corner_radius=15)
+        card_meter.pack(fill="x", pady=(0, 20))
+        
+        ctk.CTkLabel(card_meter, text="Password Strength Analyzer", font=("Roboto", 16, "bold")).pack(pady=(20, 5))
+        ctk.CTkLabel(card_meter, text="Test your password to see how long it takes to crack it.", 
+                     text_color="gray", font=("Roboto", 11)).pack(pady=(0, 15))
+
+        # Entry per il test
+        self.entry_test_pwd = ctk.CTkEntry(card_meter, placeholder_text="Type a password to test...", 
+                                            height=45, font=("Menlo", 14), border_width=1, show="*")
+        self.entry_test_pwd.pack(fill="x", padx=40, pady=10)
+        self.entry_test_pwd.bind("<KeyRelease>", self.update_strength_meter)
+
+        # Progress Bar della robustezza
+        self.strength_bar = ctk.CTkProgressBar(card_meter, height=10)
+        self.strength_bar.set(0)
+        self.strength_bar.pack(fill="x", padx=40, pady=10)
+
+        # Info Labels (Grid)
+        info_frame = ctk.CTkFrame(card_meter, fg_color="transparent")
+        info_frame.pack(fill="x", padx=40, pady=(0, 20))
+        
+        self.lbl_strength_score = ctk.CTkLabel(info_frame, text="Score: ---", font=("Roboto", 12, "bold"))
+        self.lbl_strength_score.pack(side="left")
+        
+        self.lbl_strength_bits = ctk.CTkLabel(info_frame, text="Entropy: 0 bits", text_color="gray", font=("Roboto", 11))
+        self.lbl_strength_bits.pack(side="left", padx=20)
+
+        self.lbl_crack_time = ctk.CTkLabel(info_frame, text="Time to crack: N/A", font=("Roboto", 11, "italic"))
+        self.lbl_crack_time.pack(side="right")
+
+        # --- SECTION 2: PASSWORD GENERATOR ---
+        card_pwd = ctk.CTkFrame(container, corner_radius=15)
         card_pwd.pack(fill="x", pady=20)
         
-        ctk.CTkLabel(card_pwd, text="Secure Password Generator", font=("Roboto", 16, "bold")).pack(pady=(20, 10))
+        ctk.CTkLabel(card_pwd, text="Secure Generator", font=("Roboto", 16, "bold")).pack(pady=(20, 10))
         
-        self.btn_pwd = ctk.CTkButton(card_pwd, text="Generate & Copy", height=50, font=("Roboto", 14, "bold"),
-                                     fg_color="#10B981", hover_color="#059669", # Smeraldo
+        self.btn_pwd = ctk.CTkButton(card_pwd, text="Generate Strong Key", height=45, font=("Roboto", 13, "bold"),
+                                     fg_color="#10B981", hover_color="#059669",
                                      command=self.gestisci_password)
         self.btn_pwd.pack(pady=10)
         
         self.lbl_pwd_res = ctk.CTkEntry(card_pwd, placeholder_text="---", justify="center",
-                                        font=("Menlo", 20), height=50, border_width=0, fg_color="#1E293B")
+                                        font=("Menlo", 18), height=50, border_width=0, fg_color="#1E293B")
         self.lbl_pwd_res.pack(fill="x", padx=40, pady=(10, 30))
 
-        # -- Hash Checker --
-        card_hash = ctk.CTkFrame(center_frame, corner_radius=15)
+        # --- SECTION 3: HASH CHECKER ---
+        card_hash = ctk.CTkFrame(container, corner_radius=15)
         card_hash.pack(fill="x", pady=20)
         
-        ctk.CTkLabel(card_hash, text="File Integrity Checker (SHA-256)", font=("Roboto", 16, "bold")).pack(pady=(20, 10))
+        ctk.CTkLabel(card_hash, text="Integrità File (SHA-256)", font=("Roboto", 16, "bold")).pack(pady=(20, 10))
         
         self.btn_hash = ctk.CTkButton(card_hash, text="Select File...", height=40, font=("Roboto", 13),
-                                      fg_color="#6366F1", hover_color="#4F46E5", # Indaco
+                                      fg_color="#6366F1", hover_color="#4F46E5",
                                       command=self.gestisci_hash)
         self.btn_hash.pack(pady=10)
         
         self.lbl_hash_res = ctk.CTkLabel(card_hash, text="No file selected", font=("Menlo", 12), text_color="gray", wraplength=600)
         self.lbl_hash_res.pack(pady=(10, 30))
+
+    def update_strength_meter(self, event=None):
+        pwd = self.entry_test_pwd.get()
+        bits, time_str, score, color, progress_val = calcola_robustezza(pwd)
+        
+        # Update Progress Bar
+        self.strength_bar.configure(progress_color=color)
+        self.strength_bar.set(progress_val)
+        
+        # Update Labels
+        self.lbl_strength_score.configure(text=f"Score: {score}", text_color=color)
+        self.lbl_strength_bits.configure(text=f"Entropy: {bits} bits")
+        self.lbl_crack_time.configure(text=f"Time to crack: {time_str}")
 
     # =========================================================================
     # 🧠 LOGIC & HELPERS
