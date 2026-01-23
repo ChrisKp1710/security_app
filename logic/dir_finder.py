@@ -1,41 +1,92 @@
 import http.client
+import uuid
 
 def cerca_directory_nascoste(target):
     """
-    Cerca cartelle comuni (admin, login, backup) su un sito web.
-    Restituisce una lista di quelle trovate.
+    Cerca cartelle comuni su un sito web con logica "Smart 404 Detection"
+    per evitare falsi positivi su siti React/SPA.
     """
     # Lista di cartelle comuni da cercare
-    wordlist = ["/admin", "/login", "/wp-admin", "/test", "/backup", "/private", "/dashboard"]
+    wordlist = [
+        "/admin", "/login", "/wp-admin", "/dashboard", "/backup", 
+        "/private", "/test", "/user", "/api", "/config", "/db"
+    ]
     trovate = []
     
-    # Pulizia target
+    # 1. Pulizia e preparazione target
     target = target.strip().replace("https://", "").replace("http://", "").split("/")[0]
 
-    try:
-        # Usa HTTPS di default con timeout e context sicuro
-        conn = http.client.HTTPSConnection(target, timeout=3)
-        
-        # Headers per simulare un browser reale (Stealth Mode)
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-            "Accept": "*/*"
-        }
-    except:
-        return ["Errore connessione iniziale"]
+    # Headers per simulare un browser reale (Stealth Mode)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*"
+    }
 
+    try:
+        # Timeout leggermente più alto per stabilità
+        conn = http.client.HTTPSConnection(target, timeout=4)
+        
+        # --- FASE 1: CALIBRAZIONE (Smart 404) ---
+        # Cerchiamo un path casuale che sicuramente NON esiste
+        random_path = f"/{uuid.uuid4()}"
+        
+        conn.request("HEAD", random_path, headers=headers)
+        res_calib = conn.getresponse()
+        res_calib.read() # Consuma il body
+        
+        # Analizziamo come il server gestisce gli errori
+        baseline_status = res_calib.status
+        baseline_len = res_calib.getheader("Content-Length")
+        
+        if baseline_len:
+            baseline_len = int(baseline_len)
+        else:
+            baseline_len = 0
+
+        # Se il server risponde 200 a una pagina inesistente, è un "Catch-All" (es. React App)
+        is_catch_all = (baseline_status == 200)
+        
+    except Exception as e:
+        return [f"Errore connessione: {str(e)}"]
+
+    # --- FASE 2: SCANSIONE VERA ---
     for path in wordlist:
         try:
-            # Inviamo la richiesta HEAD con gli headers
             conn.request("HEAD", path, headers=headers)
             res = conn.getresponse()
-            res.read() # Consuma sempre il body per evitare stati inconsistenti
+            res.read() # Consuma body
             
-            # Codici 200 (OK), 301/302 (Redirect), 401/403 (Protetto ma esistente)
+            # Recupera lunghezza risposta attuale
+            curr_len = res.getheader("Content-Length")
+            curr_len = int(curr_len) if curr_len else 0
+            
+            found = False
+            
+            # LOGICA DI FILTRO AVANZATA
             if res.status in [200, 301, 302, 401, 403]:
-                trovate.append(f"{path} (Code: {res.status})")
+                if is_catch_all and res.status == 200:
+                    # Se siamo in un sito "Catch-All", dobbiamo confrontare la lunghezza
+                    # Se la lunghezza è identica (o molto simile) a quella di errore -> FALSO POSITIVO
+                    diff = abs(curr_len - baseline_len)
+                    # Tolleranza di 50 bytes (spesso le pagine di errore variano leggermente per timestamp o ID)
+                    if diff > 50:
+                        found = True
+                else:
+                    # Comportamento standard (server onesti che danno 404)
+                    found = True
+
+            if found:
+                # Formattiamo l'output per la dashboard
+                info_extra = ""
+                if res.status in [301, 302]:
+                    info_extra = " -> Redirect"
+                elif res.status in [401, 403]:
+                    info_extra = " (Protected)"
+                
+                trovate.append(f"{path} [Code: {res.status}]{info_extra}")
+
         except Exception:
-            # Gestione silenziosa errori su singola richiesta (es. timeout)
+            # Ignora errori di rete su singola richiesta
             pass
             
     conn.close()
