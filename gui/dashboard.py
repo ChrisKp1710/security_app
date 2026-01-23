@@ -20,7 +20,6 @@ COLOR_WARNING = "#FACC15"
 COLOR_DANGER = "#F87171"
 COLOR_INFO = "#38BDF8"
 COLOR_MUTED = "#94A3B8"
-COLOR_BG_OVERLAY = "#0F172A"
 
 class Dashboard(ctk.CTk):
     def __init__(self):
@@ -58,7 +57,7 @@ class Dashboard(ctk.CTk):
                                              hover_color=('#3B8ED0', '#1E293B'), command=self.show_crypto)
         self.btn_nav_crypto.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
 
-        self.info_label = ctk.CTkLabel(self.sidebar_frame, text="Enterprise v5.0\nStatus: Online", 
+        self.info_label = ctk.CTkLabel(self.sidebar_frame, text="Enterprise v5.6\nStatus: Online", 
                                        font=ctk.CTkFont(size=10), text_color="gray")
         self.info_label.grid(row=5, column=0, padx=20, pady=20)
 
@@ -162,13 +161,8 @@ class Dashboard(ctk.CTk):
         self.lbl_status.grid(row=3, column=0, sticky="w")
 
         # Console area
-        self.console_container = ctk.CTkFrame(self.network_frame, fg_color="transparent")
-        self.console_container.grid(row=4, column=0, sticky="nsew", pady=15)
-        self.console_container.grid_columnconfigure(0, weight=1)
-        self.console_container.grid_rowconfigure(0, weight=1)
-
-        self.console = ctk.CTkTextbox(self.console_container, font=("Menlo", 12), fg_color="#0F172A", corner_radius=12)
-        self.console.grid(row=0, column=0, sticky="nsew")
+        self.console = ctk.CTkTextbox(self.network_frame, font=("Menlo", 12), fg_color="#0F172A", corner_radius=12)
+        self.console.grid(row=4, column=0, sticky="nsew", pady=15)
         self.console_widget = self.console._textbox
         self.console_widget.tag_config("SUCCESS", foreground=COLOR_SUCCESS)
         self.console_widget.tag_config("WARNING", foreground=COLOR_WARNING)
@@ -176,29 +170,30 @@ class Dashboard(ctk.CTk):
         self.console_widget.tag_config("INFO", foreground=COLOR_INFO)
         self.console_widget.tag_config("MUTED", foreground=COLOR_MUTED)
 
-        # --- EXPORT SYSTEM (MODALE INTEGRATA) ---
-        # 1. Background Dimmer (Sfondo scuro)
-        self.modal_dimmer = ctk.CTkFrame(self.console_container, fg_color="#000000", corner_radius=12)
+        # --- EXPORT SYSTEM (GERARCHIA CORRETTA) ---
+        # 1. Dimmer (Figlio del frame principale così copre tutto)
+        self.modal_dimmer = ctk.CTkFrame(self.network_frame, fg_color="#000000")
         
-        # 2. Modale vera e propria
-        self.export_modal = ctk.CTkFrame(self.console_container, width=400, height=350, corner_radius=20, 
+        # 2. Modale (Figlia del dimmer)
+        self.export_modal = ctk.CTkFrame(self.modal_dimmer, width=420, height=380, corner_radius=25, 
                                          fg_color="#1E293B", border_width=2, border_color="#3B8ED0")
+        self.export_modal.pack_propagate(False) # Mantieni dimensioni fisse
         
-        ctk.CTkLabel(self.export_modal, text="Export Audit", font=("Roboto", 20, "bold"), text_color="#38BDF8").pack(pady=(25, 15))
+        ctk.CTkLabel(self.export_modal, text="Export Audit Report", font=("Roboto", 22, "bold"), text_color="#38BDF8").pack(pady=(35, 20))
         self.var_html = tk.BooleanVar(value=True)
         self.var_json = tk.BooleanVar(value=False)
         self.var_txt = tk.BooleanVar(value=False)
         
-        ctk.CTkCheckBox(self.export_modal, text="Professional Audit (HTML)", variable=self.var_html, font=("Roboto", 13)).pack(pady=8, padx=60, anchor="w")
-        ctk.CTkCheckBox(self.export_modal, text="Technical Data (JSON)", variable=self.var_json, font=("Roboto", 13)).pack(pady=8, padx=60, anchor="w")
-        ctk.CTkCheckBox(self.export_modal, text="Raw Analysis (TXT)", variable=self.var_txt, font=("Roboto", 13)).pack(pady=8, padx=60, anchor="w")
+        ctk.CTkCheckBox(self.export_modal, text="Professional Audit (HTML)", variable=self.var_html, font=("Roboto", 14)).pack(pady=10, padx=70, anchor="w")
+        ctk.CTkCheckBox(self.export_modal, text="Technical Data (JSON)", variable=self.var_json, font=("Roboto", 14)).pack(pady=10, padx=70, anchor="w")
+        ctk.CTkCheckBox(self.export_modal, text="Raw Analysis (TXT)", variable=self.var_txt, font=("Roboto", 14)).pack(pady=10, padx=70, anchor="w")
         
         btn_modal_box = ctk.CTkFrame(self.export_modal, fg_color="transparent")
-        btn_modal_box.pack(pady=(30, 20))
-        ctk.CTkButton(btn_modal_box, text="CANCEL", width=100, height=35, fg_color="transparent", border_width=1, text_color="gray", command=self.hide_export_overlay).pack(side="left", padx=10)
-        ctk.CTkButton(btn_modal_box, text="GENERATE", width=120, height=35, fg_color="#3B8ED0", font=("Roboto", 12, "bold"), command=self.confirm_export).pack(side="left", padx=10)
+        btn_modal_box.pack(pady=(40, 20))
+        ctk.CTkButton(btn_modal_box, text="CANCEL", width=110, height=40, fg_color="transparent", border_width=1, text_color="gray", command=self.hide_export_overlay).pack(side="left", padx=15)
+        ctk.CTkButton(btn_modal_box, text="GENERATE", width=130, height=40, fg_color="#3B8ED0", font=("Roboto", 13, "bold"), command=self.confirm_export).pack(side="left", padx=15)
 
-        # Bottom row
+        # Bottom row buttons
         self.btn_export = ctk.CTkButton(self.network_frame, text="EXPORT REPORT", height=30, fg_color="transparent", 
                                         border_width=1, text_color="gray", command=self.show_export_overlay, state="disabled")
         self.btn_export.grid(row=5, column=0, sticky="e")
@@ -240,15 +235,16 @@ class Dashboard(ctk.CTk):
 
     # --- UX UI HANDLERS ---
     def show_export_overlay(self):
-        # 1. Mostra il dimmer nero con trasparenza simulata
+        # Posiziona il dimmer sopra tutto il network_frame
         self.modal_dimmer.place(relx=0, rely=0, relwidth=1, relheight=1)
-        # 2. Mostra la modale al centro
+        # Centra la modale
         self.export_modal.place(relx=0.5, rely=0.5, anchor="center")
-        self.export_modal.lift() # Porta in primo piano
+        self.update() # Forza il refresh grafico
 
     def hide_export_overlay(self):
         self.export_modal.place_forget()
         self.modal_dimmer.place_forget()
+        self.update()
 
     def show_toast(self, message, color=COLOR_SUCCESS):
         self.lbl_toast.configure(text=message, text_color=color)
@@ -372,6 +368,8 @@ class Dashboard(ctk.CTk):
         if robots:
             self.after(0, lambda: self.log("Robots.txt findings:", "WARNING"))
             for path in robots: self.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
+        else:
+            self.after(0, lambda: self.log("Robots.txt is empty or missing.", "INFO"))
         self.after(0, lambda: self.btn_recon.configure(state="normal"))
         self.after(0, lambda: self.show_toast("Reconnaissance complete"))
 
