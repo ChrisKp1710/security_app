@@ -239,6 +239,11 @@ class Dashboard(ctk.CTk):
 
     def mostra_dir(self, res):
         self.btn_dir.configure(state="normal")
+        
+        if res is None:
+            self.log("Connection Error: Could not reach the target (Check URL/Internet).", "ERROR")
+            return
+
         if not res: 
             self.log("No hidden directories found.", "WARNING")
         else:

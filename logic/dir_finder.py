@@ -51,7 +51,8 @@ def cerca_directory_nascoste(target):
         is_403_catch_all = (baseline_status == 403)
         
     except Exception as e:
-        return [f"Errore connessione: {str(e)}"]
+        # Restituiamo una tupla speciale o None per indicare errore critico
+        return None
 
     # --- FASE 2: SCANSIONE VERA ---
     for path in wordlist:
