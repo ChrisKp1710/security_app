@@ -43,8 +43,12 @@ def cerca_directory_nascoste(target):
         else:
             baseline_len = 0
 
-        # Se il server risponde 200 a una pagina inesistente, è un "Catch-All" (es. React App)
-        is_catch_all = (baseline_status == 200)
+        # RILEVAMENTO COMPORTAMENTI "CATCH-ALL"
+        # 1. Catch-All 200 (React/SPA): Risponde 200 a tutto
+        is_200_catch_all = (baseline_status == 200)
+        
+        # 2. Catch-All 403 (WAF/Security): Risponde 403 a tutto quello che non conosce
+        is_403_catch_all = (baseline_status == 403)
         
     except Exception as e:
         return [f"Errore connessione: {str(e)}"]
@@ -62,17 +66,28 @@ def cerca_directory_nascoste(target):
             
             found = False
             
-            # LOGICA DI FILTRO AVANZATA
-            if res.status in [200, 301, 302, 401, 403]:
-                if is_catch_all and res.status == 200:
-                    # Se siamo in un sito "Catch-All", dobbiamo confrontare la lunghezza
-                    # Se la lunghezza è identica (o molto simile) a quella di errore -> FALSO POSITIVO
+            # LOGICA DI FILTRO AVANZATA (SMART FILTERING)
+            status = res.status
+            
+            if status in [200, 301, 302, 401, 403]:
+                
+                # Caso A: Gestione Falsi Positivi 200 (SPA)
+                if status == 200 and is_200_catch_all:
                     diff = abs(curr_len - baseline_len)
-                    # Tolleranza di 50 bytes (spesso le pagine di errore variano leggermente per timestamp o ID)
+                    if diff > 50: # Se lunghezza diversa -> È una pagina vera
+                        found = True
+                
+                # Caso B: Gestione Falsi Positivi 403 (WAF)
+                elif status == 403 and is_403_catch_all:
+                    # Se tutto dà 403, segnaliamo solo se c'è una differenza significativa
+                    # Spesso i WAF rispondono con pagine di blocco identiche
+                    diff = abs(curr_len - baseline_len)
                     if diff > 50:
                         found = True
-                else:
-                    # Comportamento standard (server onesti che danno 404)
+                        
+                # Caso C: Comportamento Standard (Server Onesto)
+                # Se non è un catch-all, fidiamoci del codice
+                elif not (status == 200 and is_200_catch_all) and not (status == 403 and is_403_catch_all):
                     found = True
 
             if found:
