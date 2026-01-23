@@ -69,6 +69,7 @@ class Dashboard(ctk.CTk):
         self.setup_network_ui()
         self.setup_crypto_ui()
 
+        self.last_target = "" # Per la pulizia intelligente
         self.show_home()
 
     def select_frame(self, name):
@@ -146,11 +147,9 @@ class Dashboard(ctk.CTk):
         self.lbl_status = ctk.CTkLabel(self.network_frame, text="System Ready.", text_color="gray", font=("Roboto", 11))
         self.lbl_status.grid(row=3, column=0, sticky="w")
 
-        # CONSOLE CON SUPPORTO COLORI (Workaround per CTkTextbox)
         self.console = ctk.CTkTextbox(self.network_frame, font=("Menlo", 12), fg_color="#0F172A", corner_radius=12)
         self.console.grid(row=4, column=0, sticky="nsew", pady=15)
         
-        # In CTkTextbox i tag funzionano ma vanno applicati al widget tk sottostante
         self.console_widget = self.console._textbox
         self.console_widget.tag_config("SUCCESS", foreground=COLOR_SUCCESS)
         self.console_widget.tag_config("WARNING", foreground=COLOR_WARNING)
@@ -161,6 +160,11 @@ class Dashboard(ctk.CTk):
         self.btn_export = ctk.CTkButton(self.network_frame, text="EXPORT LOG", height=30, fg_color="transparent", 
                                         border_width=1, text_color="gray", command=self.salva_report)
         self.btn_export.grid(row=5, column=0, sticky="e")
+
+        self.btn_clear = ctk.CTkButton(self.network_frame, text="CLEAR", height=30, width=80, fg_color="transparent", 
+                                       border_width=1, text_color="#EF4444", border_color="#EF4444", 
+                                       hover_color="#450a0a", command=self.clear_console)
+        self.btn_clear.grid(row=5, column=0, sticky="w")
 
     def setup_crypto_ui(self):
         self.crypto_frame.grid_columnconfigure(0, weight=3)
@@ -200,12 +204,27 @@ class Dashboard(ctk.CTk):
         self.lbl_hash_res = ctk.CTkLabel(card_h, text="Waiting for file...", font=("Menlo", 11), wraplength=200)
         self.lbl_hash_res.pack(pady=20, padx=20)
 
-    # --- LOGIC INTEGRATION CON COLORI E SMART LOGIC ---
+    # --- LOGIC INTEGRATION ---
     def log(self, text, tag="INFO"):
         now = datetime.datetime.now().strftime('%H:%M:%S')
         self.console.insert("end", f"[{now}] ", "MUTED")
         self.console.insert("end", f"{text}\n", tag)
         self.console.see("end")
+
+    def clear_console(self):
+        self.console.delete("1.0", "end")
+
+    def check_and_clear_logs(self):
+        """Pulisce la console solo se il dominio del target è cambiato."""
+        current_input = self.entry_ip.get().strip()
+        # Estraiamo il dominio (es: da https://epicode.com/it -> epicode.com)
+        current_domain = current_input.replace("https://", "").replace("http://", "").split("/")[0]
+        
+        if self.last_target and self.last_target != current_domain:
+            self.clear_console()
+            self.log(f"New target detected: {current_domain}. Console cleared.", "INFO")
+        
+        self.last_target = current_domain
 
     def update_strength_meter(self, event=None):
         pwd = self.entry_test_pwd.get()
@@ -221,6 +240,7 @@ class Dashboard(ctk.CTk):
     def avvia_scan(self):
         target = self.entry_ip.get().strip()
         if not target: return
+        self.check_and_clear_logs() # Controllo pulizia
         self.btn_scan.configure(state="disabled")
         self.progress_bar.set(0)
         self.log(f"Starting DNS resolution for {target}...", "INFO")
@@ -232,7 +252,6 @@ class Dashboard(ctk.CTk):
             self.after(0, lambda: self.log("DNS Resolution Failed.", "DANGER"))
             self.after(0, lambda: self.btn_scan.configure(state="normal"))
             return
-        self.after(0, lambda: self.log(f"Target Resolved: {ip}", "SUCCESS"))
         self.after(0, lambda: self.start_scan_thread(target, ip))
 
     def start_scan_thread(self, target, ip):
@@ -261,7 +280,7 @@ class Dashboard(ctk.CTk):
 
     def avvia_dir(self):
         t = self.entry_ip.get().strip()
-        self.log(f"Initializing Smart Directory Discovery on {t}...", "INFO")
+        self.check_and_clear_logs() # Controllo pulizia
         self.btn_dir.configure(state="disabled")
         threading.Thread(target=lambda: self.after(0, self.mostra_dir, cerca_directory_nascoste(t))).start()
 
@@ -277,7 +296,7 @@ class Dashboard(ctk.CTk):
 
     def avvia_recon(self):
         t = self.entry_ip.get().strip()
-        self.log(f"Analyzing Security Headers for {t}...", "INFO")
+        self.check_and_clear_logs() # Controllo pulizia
         self.btn_recon.configure(state="disabled")
         threading.Thread(target=self.thread_recon, args=(t,)).start()
 
