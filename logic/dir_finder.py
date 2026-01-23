@@ -49,6 +49,10 @@ def cerca_directory_nascoste(target):
         
         # 2. Catch-All 403 (WAF/Security): Risponde 403 a tutto quello che non conosce
         is_403_catch_all = (baseline_status == 403)
+
+        # 3. Catch-All Redirect (Soft Fail): Risponde 301/302 a tutto (verso Login o Home)
+        is_redirect_catch_all = (baseline_status in [301, 302, 307, 308])
+        baseline_location = res_calib.getheader("Location")
         
     except Exception as e:
         # Restituiamo una tupla speciale o None per indicare errore critico
@@ -64,38 +68,46 @@ def cerca_directory_nascoste(target):
             # Recupera lunghezza risposta attuale
             curr_len = res.getheader("Content-Length")
             curr_len = int(curr_len) if curr_len else 0
+            curr_location = res.getheader("Location")
             
             found = False
             
-            # LOGICA DI FILTRO AVANZATA (SMART FILTERING)
+            # LOGICA DI FILTRO AVANZATA (SMART FILTERING v2.0)
             status = res.status
             
-            if status in [200, 301, 302, 401, 403]:
+            if status in [200, 301, 302, 307, 308, 401, 403]:
                 
                 # Caso A: Gestione Falsi Positivi 200 (SPA)
                 if status == 200 and is_200_catch_all:
                     diff = abs(curr_len - baseline_len)
-                    if diff > 50: # Se lunghezza diversa -> È una pagina vera
-                        found = True
+                    if diff > 50: found = True
                 
                 # Caso B: Gestione Falsi Positivi 403 (WAF)
                 elif status == 403 and is_403_catch_all:
-                    # Se tutto dà 403, segnaliamo solo se c'è una differenza significativa
-                    # Spesso i WAF rispondono con pagine di blocco identiche
                     diff = abs(curr_len - baseline_len)
-                    if diff > 50:
-                        found = True
-                        
-                # Caso C: Comportamento Standard (Server Onesto)
-                # Se non è un catch-all, fidiamoci del codice
-                elif not (status == 200 and is_200_catch_all) and not (status == 403 and is_403_catch_all):
+                    if diff > 50: found = True
+
+                # Caso C: Gestione Falsi Positivi Redirect (Login Loops)
+                elif status in [301, 302, 307, 308] and is_redirect_catch_all:
+                    # Se redirige allo stesso posto del path casuale -> Falso Positivo
+                    # Usiamo 'in' perché a volte gli url relativi/assoluti variano leggermente
+                    if curr_location and baseline_location and (curr_location == baseline_location):
+                        pass # È uguale, ignoriamo
+                    else:
+                        found = True # Redirige altrove! È interessante.
+
+                # Caso D: Comportamento Standard (Server Onesto)
+                # Se non rientra nei casi catch-all sopra, ci fidiamo del codice
+                elif not (status == 200 and is_200_catch_all) and \
+                     not (status == 403 and is_403_catch_all) and \
+                     not (status in [301, 302, 307, 308] and is_redirect_catch_all):
                     found = True
 
             if found:
                 # Formattiamo l'output per la dashboard
                 info_extra = ""
-                if res.status in [301, 302]:
-                    info_extra = " -> Redirect"
+                if res.status in [301, 302, 307, 308]:
+                    info_extra = f" -> Redirect to {curr_location}"
                 elif res.status in [401, 403]:
                     info_extra = " (Protected)"
                 

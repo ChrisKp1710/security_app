@@ -3,18 +3,18 @@ import urllib.parse
 
 def analizza_headers(target):
     """
-    Analizza gli header di sicurezza HTTP di un sito target.
-    Restituisce un report dettagliato e un punteggio di sicurezza.
+    Analizza gli header di sicurezza HTTP, seguendo i redirect (max 3 hop).
     """
-    # Pulizia target per ottenere solo host e path base
-    parsed = urllib.parse.urlparse(target if "://" in target else "https://" + target)
+    # Parsing iniziale
+    if not target.startswith("http"): target = "https://" + target
+    parsed = urllib.parse.urlparse(target)
     host = parsed.netloc
+    path = parsed.path if parsed.path else "/"
     
     headers_report = []
     security_score = 0
-    max_score = 5 # HSTS, X-Frame, X-Content, CSP, Server-Hidden
+    max_redirects = 3 # Evitiamo loop infiniti
     
-    # Headers critici da cercare
     checks = {
         "Strict-Transport-Security": "HSTS (HTTPS Enforced)",
         "X-Frame-Options": "Anti-Clickjacking",
@@ -24,13 +24,32 @@ def analizza_headers(target):
     }
 
     try:
-        conn = http.client.HTTPSConnection(host, timeout=5)
-        conn.request("HEAD", "/", headers={"User-Agent": "Mozilla/5.0 SecurityScanner/2.0"})
-        res = conn.getresponse()
-        res_headers = {k.lower(): v for k, v in res.getheaders()}
-        conn.close()
+        current_host = host
+        current_path = path
+        
+        # Loop per seguire i redirect
+        for _ in range(max_redirects + 1):
+            conn = http.client.HTTPSConnection(current_host, timeout=5)
+            conn.request("HEAD", current_path, headers={"User-Agent": "Mozilla/5.0 SecurityScanner/2.0"})
+            res = conn.getresponse()
+            res_headers = {k.lower(): v for k, v in res.getheaders()}
+            conn.close()
+            
+            # Se è un redirect (301, 302, 307, 308), seguiamolo
+            if res.status in [301, 302, 307, 308]:
+                location = res_headers.get('location')
+                if location:
+                    # Gestione redirect relativo o assoluto
+                    new_parsed = urllib.parse.urlparse(location)
+                    if new_parsed.netloc:
+                        current_host = new_parsed.netloc
+                    current_path = new_parsed.path if new_parsed.path else "/"
+                    continue # Riprova col nuovo indirizzo
+            
+            # Se siamo qui, abbiamo la risposta finale (o abbiamo finito i tentativi)
+            break
 
-        # Analisi
+        # Analisi sulla risposta finale
         for header_key, desc in checks.items():
             key_lower = header_key.lower()
             if key_lower in res_headers:
@@ -39,11 +58,11 @@ def analizza_headers(target):
             else:
                 headers_report.append(f"❌ {desc}: MANCANTE")
         
-        # Analisi Extra: Server Header (Information Disclosure)
+        # Analisi Server Header
         if "server" in res_headers:
             headers_report.append(f"⚠️ Server Info Leaked: {res_headers['server']}")
         else:
-            security_score += 1 # Bonus se nascondono la versione del server
+            security_score += 1 
             headers_report.append(f"✅ Server Info: Nascosto (Good Practice)")
             
         return security_score, headers_report
