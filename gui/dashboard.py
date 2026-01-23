@@ -91,7 +91,7 @@ class Dashboard:
         self.console.tag_config("CYAN", foreground="#00B0FF", font=("Courier New", 11, "bold"))
         self.console.tag_config("WHITE", foreground="#FFFFFF")
 
-        tk.Button(self.tab_scanner, text="SAVE LOG", bg="#444", fg="white", command=self.salva_report).pack(pady=10)
+        tk.Button(self.tab_scanner, text="💾 SAVE LOG", bg="#03DAC6", fg="#000000", font=("Arial", 11, "bold"), width=20, command=self.salva_report).pack(pady=10)
 
     def setup_crypto_tab(self):
         # Password Section
