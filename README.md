@@ -1,200 +1,68 @@
-# 🛡️ Security Toolkit ULTIMATE v4.0 - DARK EDITION
+# 🛡️ Security Toolkit Pro v4.5 - Enterprise Edition
 
 ![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)
+![UI Framework](https://img.shields.io/badge/UI-CustomTkinter-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Platform](https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey.svg)
+![Security](https://img.shields.io/badge/Security-CSPRNG-orange.svg)
 
-Una suite completa di strumenti per la sicurezza informatica con interfaccia grafica dark mode moderna. Progettata per penetration testing, analisi della sicurezza di rete e gestione delle password.
+**Security Toolkit Pro** è una suite avanzata di strumenti per la cyber-sicurezza e la ricognizione web, progettata con un approccio "Smart" per ridurre i falsi positivi e fornire analisi accurate. Sviluppata per scopi didattici e professionali, l'app combina una logica di scansione intelligente con un'interfaccia moderna in stile 2025/26.
 
-## ✨ Caratteristiche
+## 🚀 Perché questo tool è diverso?
 
-### 🕵️ Network Scanner
-- **Port Scanning**: Scansione rapida o completa delle porte TCP
-- **Banner Grabbing**: Identificazione automatica dei servizi in esecuzione
-- **Analisi del Rischio**: Classificazione delle porte aperte per livello di rischio (ROSSO/GIALLO/VERDE)
-- **Risoluzione DNS**: Conversione automatica hostname → IP
-- **Progress Bar**: Monitoraggio in tempo reale dell'avanzamento della scansione
+A differenza dei comuni scanner amatoriali, questo toolkit implementa algoritmi di **calibrazione dinamica** per interpretare correttamente le risposte dei server moderni (React, SPA, WAF, Cloudflare).
 
-### 🔐 Crypto & Security Tools
-- **Password Generator**: Generazione di password sicure con lettere, numeri e simboli speciali
-- **File Hash Checker**: Calcolo dell'impronta digitale SHA-256 per verifica dell'integrità dei file
-- **Directory Brute Force**: Enumerazione di directory nascoste comuni su web server
+### 🧠 Logica Smart & Anti-False Positive
+*   **Calibration Engine**: Prima di ogni scansione, il tool analizza il comportamento del server (404, 200 catch-all, 403 blocks o 301 redirects) per creare una "baseline" di confronto.
+*   **Smart Redirect Filter**: Identifica se un redirect è un "soft-fail" generico verso la login o se punta a una risorsa reale e specifica, rivelando la struttura nascosta del sito.
+*   **WAF Detection**: Riconosce i blocchi preventivi dei firewall (403 Forbidden) evitando di inondare il report di risultati inutili.
 
-### 🎨 Interfaccia Utente
-- **Dark Mode**: Design professionale con tema scuro ottimizzato
-- **Console Integrata**: Output colorato in stile terminale per facile lettura dei risultati
-- **Multithreading**: Operazioni asincrone per un'interfaccia sempre reattiva
-- **Export Log**: Salvataggio dei report di scansione in formato testo
+## ✨ Caratteristiche Principali
 
-## 📋 Requisiti
+### 🌐 Network Operations Center
+*   **Intelligent Port Scanner**: Non solo rileva porte aperte, ma esegue un **Service Fingerprinting** per identificare tecnologie come Nginx, Apache, SSH, MySQL e la loro versione.
+*   **Directory Brute-Force**: Enumerazione di directory con filtraggio intelligente basato sulla dimensione della risposta e sulla destinazione dei redirect.
+*   **Deep Reconnaissance**: 
+    *   **Security Headers Analysis**: Valutazione dell'hardening del server (HSTS, CSP, X-Frame-Options, ecc.) con punteggio di sicurezza (Security Score).
+    *   **Robots.txt Discovery**: Analisi automatica dei percorsi sensibili esposti nel file robots.txt.
 
-- Python 3.8 o superiore
-- Tkinter (incluso di default con Python)
-- Sistema operativo: macOS, Linux o Windows
+### 🔐 Crypto Lab (Laboratorio Crittografico)
+*   **CSPRNG Password Generator**: Generazione di chiavi basata sul modulo `secrets` di Python per garantire l'imprevedibilità crittografica.
+*   **Password Strength Meter**: Analisi in tempo reale dell'entropia (bit) e stima del tempo necessario per un attacco Brute Force professionale.
+*   **File Integrity**: Calcolo hash SHA-256 con lettura a blocchi per gestire file di grandi dimensioni senza saturare la memoria.
 
-## 🚀 Installazione
+### 🎨 Interfaccia Utente (UI/UX)
+*   **Modern Dark Mode**: Basata su `CustomTkinter`, con angoli arrotondati, animazioni di feedback e gerarchia visiva chiara.
+*   **Multi-threading**: Tutte le operazioni pesanti corrono in background per garantire un'interfaccia sempre fluida e reattiva.
 
-### 1. Clona il repository
+## 🛠 Installazione
+
+### 1. Clonazione del repository
 ```bash
-git clone https://github.com/tuousername/security_app.git
+git clone https://github.com/tuo-username/security_app.git
 cd security_app
 ```
 
-### 2. Verifica i requisiti
+### 2. Installazione dipendenze
+Il progetto richiede `customtkinter` per la parte grafica:
 ```bash
-python3 --version
+pip install customtkinter
 ```
 
-### 3. Avvia l'applicazione
+### 3. Avvio
 ```bash
 python3 main.py
 ```
 
-## 📖 Utilizzo
+## 📖 Utilizzo Professionale
 
-### Network Scanner
+1.  **Recon**: Inserisci un dominio (es. `https://bersaglio.com`).
+2.  **Scan**: Esegui prima il **Port Scan** per identificare i servizi esposti.
+3.  **Deep Recon**: Clicca su **🛡️ RECON** per analizzare la corazza di sicurezza del server (Headers).
+4.  **Directory Busting**: Se il server è un sito web, avvia il **DIR BUST** per cercare punti di ingresso non indicizzati.
 
-#### Scansione Rapida
-1. Inserisci l'hostname o l'IP del target (es. `epicode.com`)
-2. Seleziona l'opzione **Rapido** per scansionare le porte più comuni
-3. Clicca su **🚀 START SCAN**
-4. Visualizza i risultati colorati nella console:
-   - 🟢 **VERDE**: Porte sicure (80, 443)
-   - 🟡 **GIALLO**: Porte a medio rischio (22, 8080)
-   - 🔴 **ROSSO**: Porte ad alto rischio (21, 23, 3306, 3389)
+## ⚠️ Disclaimer Legale
 
-#### Scansione Completa
-Seleziona **Full** per scansionare le porte dalla 1 alla 1000
-
-#### Directory Enumeration
-1. Inserisci l'hostname del sito web target
-2. Clicca su **📂 DIR BRUTE**
-3. L'applicazione cercherà directory comuni come:
-   - `/admin`
-   - `/login`
-   - `/wp-admin`
-   - `/backup`
-   - `/dashboard`
-
-### Crypto & Tools
-
-#### Generatore Password
-1. Vai alla scheda **🔐 Crypto & Tools**
-2. Clicca su **GENERATE SECURE PASSWORD**
-3. La password (16 caratteri) viene generata e copiata automaticamente negli appunti
-
-#### Verifica Integrità File
-1. Clicca su **CHECK FILE HASH**
-2. Seleziona un file dal file picker
-3. Visualizza l'hash SHA-256 del file per verificarne l'autenticità
-
-### Salvataggio Report
-Clicca su **SAVE LOG** nella scheda Scanner per esportare tutti i risultati in un file .txt
-
-## 🏗️ Architettura del Progetto
-
-```
-security_app/
-├── main.py                 # Entry point dell'applicazione
-├── gui/
-│   ├── __init__.py
-│   └── dashboard.py        # Interfaccia grafica Tkinter con dark theme
-└── logic/
-    ├── __init__.py
-    ├── port_scanner.py     # Scansione porte e banner grabbing
-    ├── dir_finder.py       # Enumerazione directory web
-    ├── password_gen.py     # Generazione password sicure
-    └── hash_checker.py     # Calcolo hash SHA-256
-```
-
-### Moduli Principali
-
-#### `main.py`
-Entry point che inizializza l'interfaccia Tkinter e avvia il dashboard principale.
-
-#### `dashboard.py`
-- Gestione dell'interfaccia grafica con sistema a schede
-- Implementazione del dark theme con colori personalizzati
-- Console con output colorato e tagging
-- Threading per operazioni asincrone
-
-#### `port_scanner.py`
-```python
-scansione_porte(target, range_porte, callback_progress=None)
-```
-Scansiona le porte TCP del target e tenta di recuperare i banner dei servizi.
-
-#### `dir_finder.py`
-```python
-cerca_directory_nascoste(target)
-```
-Utilizza richieste HTTP HEAD per verificare l'esistenza di directory comuni.
-
-#### `password_gen.py`
-```python
-genera_password(lunghezza=12)
-```
-Genera password casuali con alta entropia utilizzando lettere, numeri e simboli.
-
-#### `hash_checker.py`
-```python
-calcola_hash_file(percorso_file)
-```
-Calcola l'hash SHA-256 di un file leggendolo a blocchi per ottimizzare le performance.
-
-## ⚠️ Avvertenze Legali
-
-**IMPORTANTE**: Questo software è progettato esclusivamente per scopi educativi e di testing su sistemi di cui si possiede l'autorizzazione.
-
-- ❌ **NON** utilizzare su sistemi senza autorizzazione esplicita
-- ❌ **NON** utilizzare per attività illegali
-- ✅ Utilizzare solo su infrastrutture proprie o con permesso scritto
-- ✅ Rispettare le leggi locali e internazionali sulla sicurezza informatica
-
-L'autore non si assume alcuna responsabilità per uso improprio del software.
-
-## 🔒 Best Practices di Sicurezza
-
-- Testa sempre in ambienti controllati (lab virtuali, macchine locali)
-- Documenta tutte le attività di penetration testing
-- Ottieni autorizzazioni scritte prima di qualsiasi test
-- Rispetta gli scope agreement concordati
-- Non salvare log in ambienti non sicuri
-
-## 🤝 Contribuire
-
-I contributi sono benvenuti! Per contribuire:
-
-1. Fai un fork del progetto
-2. Crea un branch per la tua feature (`git checkout -b feature/NuovaFunzionalità`)
-3. Committa le modifiche (`git commit -m 'Aggiunge NuovaFunzionalità'`)
-4. Push sul branch (`git push origin feature/NuovaFunzionalità`)
-5. Apri una Pull Request
-
-## 📝 TODO & Roadmap
-
-- [ ] Aggiungere scansione UDP
-- [ ] Implementare salvataggio risultati in formato JSON/CSV
-- [ ] Aggiungere supporto per proxy SOCKS
-- [ ] Implementare database di vulnerabilità note (CVE)
-- [ ] Aggiungere crittografia/decrittografia file
-- [ ] Implementare analisi di sicurezza Wi-Fi
-- [ ] Aggiungere test di SQL injection basilari
-
-## 📄 Licenza
-
-Questo progetto è distribuito sotto licenza MIT. Vedi il file `LICENSE` per maggiori dettagli.
-
-## 👨‍💻 Autore
-
-Creato con ❤️ per la community della cybersecurity
-
-## 🙏 Ringraziamenti
-
-- Tkinter per il framework GUI
-- La community open source della sicurezza informatica
-- Tutti i contributor che hanno migliorato questo progetto
+**IMPORTANTE**: Questo software è creato esclusivamente per scopi educativi e per attività di Ethical Hacking autorizzate. L'utilizzo di questo strumento verso bersagli senza previa autorizzazione scritta è illegale. L'autore non si assume alcuna responsabilità per l'uso improprio del software.
 
 ---
-
-**Disclaimer**: Questo è uno strumento educativo. L'utilizzo improprio può violare leggi locali e internazionali. Usa sempre in modo responsabile ed etico.
+*Sviluppato con passione per la community di Cyber Security.*
