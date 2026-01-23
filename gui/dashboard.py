@@ -71,8 +71,8 @@ class Dashboard(ctk.CTk):
         self.setup_network_ui()
         self.setup_crypto_ui()
 
-        # Toast Notification Widget (Hidden by default)
-        self.toast_frame = ctk.CTkFrame(self, corner_radius=10, fg_color=COLOR_BG_OVERLAY, border_width=1, border_color=COLOR_SUCCESS)
+        # Toast Notification Widget
+        self.toast_frame = ctk.CTkFrame(self, corner_radius=10, fg_color="#1E293B", border_width=1, border_color=COLOR_SUCCESS)
         self.lbl_toast = ctk.CTkLabel(self.toast_frame, text="", font=("Roboto", 12, "bold"), padx=20, pady=10)
         self.lbl_toast.pack()
 
@@ -89,7 +89,6 @@ class Dashboard(ctk.CTk):
         }
 
     def show_toast(self, message, color=COLOR_SUCCESS):
-        """Mostra una notifica a scomparsa automatica."""
         self.lbl_toast.configure(text=message, text_color=color)
         self.toast_frame.configure(border_color=color)
         self.toast_frame.place(relx=0.95, rely=0.95, anchor="se")
@@ -162,7 +161,7 @@ class Dashboard(ctk.CTk):
         self.lbl_status = ctk.CTkLabel(self.network_frame, text="System Ready.", text_color="gray", font=("Roboto", 11))
         self.lbl_status.grid(row=3, column=0, sticky="w")
 
-        # Console area with relative positioning for overlay
+        # Console area
         self.console_container = ctk.CTkFrame(self.network_frame, fg_color="transparent")
         self.console_container.grid(row=4, column=0, sticky="nsew", pady=15)
         self.console_container.grid_columnconfigure(0, weight=1)
@@ -177,23 +176,27 @@ class Dashboard(ctk.CTk):
         self.console_widget.tag_config("INFO", foreground=COLOR_INFO)
         self.console_widget.tag_config("MUTED", foreground=COLOR_MUTED)
 
-        # --- EXPORT OVERLAY (In-App Popup) ---
-        self.export_overlay = ctk.CTkFrame(self.console_container, corner_radius=15, fg_color="#1E293B", border_width=2, border_color="#3B8ED0")
-        # Hidden by default
+        # --- EXPORT SYSTEM (MODALE INTEGRATA) ---
+        # 1. Background Dimmer (Sfondo scuro)
+        self.modal_dimmer = ctk.CTkFrame(self.console_container, fg_color="#000000", corner_radius=12)
         
-        ctk.CTkLabel(self.export_overlay, text="Export Security Audit", font=("Roboto", 18, "bold")).pack(pady=(20, 10))
+        # 2. Modale vera e propria
+        self.export_modal = ctk.CTkFrame(self.console_container, width=400, height=350, corner_radius=20, 
+                                         fg_color="#1E293B", border_width=2, border_color="#3B8ED0")
+        
+        ctk.CTkLabel(self.export_modal, text="Export Audit", font=("Roboto", 20, "bold"), text_color="#38BDF8").pack(pady=(25, 15))
         self.var_html = tk.BooleanVar(value=True)
         self.var_json = tk.BooleanVar(value=False)
         self.var_txt = tk.BooleanVar(value=False)
         
-        ctk.CTkCheckBox(self.export_overlay, text="Professional Report (HTML)", variable=self.var_html).pack(pady=5, padx=40, anchor="w")
-        ctk.CTkCheckBox(self.export_overlay, text="Technical Data (JSON)", variable=self.var_json).pack(pady=5, padx=40, anchor="w")
-        ctk.CTkCheckBox(self.export_overlay, text="Raw Logs (TXT)", variable=self.var_txt).pack(pady=5, padx=40, anchor="w")
+        ctk.CTkCheckBox(self.export_modal, text="Professional Audit (HTML)", variable=self.var_html, font=("Roboto", 13)).pack(pady=8, padx=60, anchor="w")
+        ctk.CTkCheckBox(self.export_modal, text="Technical Data (JSON)", variable=self.var_json, font=("Roboto", 13)).pack(pady=8, padx=60, anchor="w")
+        ctk.CTkCheckBox(self.export_modal, text="Raw Analysis (TXT)", variable=self.var_txt, font=("Roboto", 13)).pack(pady=8, padx=60, anchor="w")
         
-        btn_box = ctk.CTkFrame(self.export_overlay, fg_color="transparent")
-        btn_box.pack(pady=25)
-        ctk.CTkButton(btn_box, text="CANCEL", width=100, fg_color="transparent", border_width=1, command=self.hide_export_overlay).pack(side="left", padx=10)
-        ctk.CTkButton(btn_box, text="GENERATE", width=120, fg_color="#3B8ED0", command=self.confirm_export).pack(side="left", padx=10)
+        btn_modal_box = ctk.CTkFrame(self.export_modal, fg_color="transparent")
+        btn_modal_box.pack(pady=(30, 20))
+        ctk.CTkButton(btn_modal_box, text="CANCEL", width=100, height=35, fg_color="transparent", border_width=1, text_color="gray", command=self.hide_export_overlay).pack(side="left", padx=10)
+        ctk.CTkButton(btn_modal_box, text="GENERATE", width=120, height=35, fg_color="#3B8ED0", font=("Roboto", 12, "bold"), command=self.confirm_export).pack(side="left", padx=10)
 
         # Bottom row
         self.btn_export = ctk.CTkButton(self.network_frame, text="EXPORT REPORT", height=30, fg_color="transparent", 
@@ -235,20 +238,32 @@ class Dashboard(ctk.CTk):
         self.lbl_hash_res = ctk.CTkLabel(card_h, text="Waiting for file...", font=("Menlo", 11), wraplength=200)
         self.lbl_hash_res.pack(pady=20, padx=20)
 
-    # --- UI HELPERS ---
+    # --- UX UI HANDLERS ---
     def show_export_overlay(self):
-        self.export_overlay.place(relx=0.5, rely=0.5, anchor="center", relwidth=0.6, relheight=0.6)
+        # 1. Mostra il dimmer nero con trasparenza simulata
+        self.modal_dimmer.place(relx=0, rely=0, relwidth=1, relheight=1)
+        # 2. Mostra la modale al centro
+        self.export_modal.place(relx=0.5, rely=0.5, anchor="center")
+        self.export_modal.lift() # Porta in primo piano
 
     def hide_export_overlay(self):
-        self.export_overlay.place_forget()
+        self.export_modal.place_forget()
+        self.modal_dimmer.place_forget()
 
+    def show_toast(self, message, color=COLOR_SUCCESS):
+        self.lbl_toast.configure(text=message, text_color=color)
+        self.toast_frame.configure(border_color=color)
+        self.toast_frame.place(relx=0.95, rely=0.95, anchor="se")
+        self.after(3000, lambda: self.toast_frame.place_forget())
+
+    # --- LOGIC ---
     def log(self, text, tag="INFO"):
         now = datetime.datetime.now().strftime('%H:%M:%S')
         self.console.insert("end", f"[{now}] ", "MUTED")
         self.console.insert("end", f"{text}\n", tag)
         self.console.see("end")
         if tag in ["SUCCESS", "WARNING", "DANGER", "OPEN", "FOUND"] and self.btn_export.cget("state") == "disabled":
-            self.btn_export.configure(state="normal", text_color="white", border_color=COLOR_MUTED)
+            self.btn_export.configure(state="normal", text_color="white", border_color="#4B5563")
 
     def clear_console(self):
         self.console.delete("1.0", "end")
@@ -357,8 +372,6 @@ class Dashboard(ctk.CTk):
         if robots:
             self.after(0, lambda: self.log("Robots.txt findings:", "WARNING"))
             for path in robots: self.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
-        else:
-            self.after(0, lambda: self.log("Robots.txt is empty or missing.", "INFO"))
         self.after(0, lambda: self.btn_recon.configure(state="normal"))
         self.after(0, lambda: self.show_toast("Reconnaissance complete"))
 
@@ -368,7 +381,7 @@ class Dashboard(ctk.CTk):
         self.lbl_pwd_res.insert(0, pwd)
         self.clipboard_clear()
         self.clipboard_append(pwd)
-        self.show_toast("Strong key copied to clipboard")
+        self.show_toast("Strong key copied")
 
     def gestisci_hash(self):
         f = filedialog.askopenfilename()
@@ -383,7 +396,6 @@ class Dashboard(ctk.CTk):
         if self.var_json.get(): formats.append("json")
         if self.var_txt.get(): formats.append("txt")
         if not formats: return
-        
         folder = filedialog.askdirectory(title="Select Output Folder")
         if folder:
             from logic.report_generator import generate_reports
