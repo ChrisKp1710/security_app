@@ -7,6 +7,7 @@ from logic.password_gen import genera_password
 from logic.hash_checker import calcola_hash_file
 from logic.port_scanner import scansione_porte, ottieni_ip
 from logic.dir_finder import cerca_directory_nascoste
+from logic.web_recon import analizza_headers, analizza_robots
 
 # --- CONFIGURAZIONE UI/UX THEME ---
 ctk.set_appearance_mode("Dark")  # Forza Dark Mode
@@ -91,6 +92,11 @@ class Dashboard(ctk.CTk):
                                      font=("Roboto", 13, "bold"), fg_color="#4B5563", hover_color="#374151",
                                      command=self.avvia_dir)
         self.btn_dir.pack(side="right")
+
+        self.btn_recon = ctk.CTkButton(self.frame_controls, text="🛡️ RECON", height=40, width=120,
+                                     font=("Roboto", 13, "bold"), fg_color="#7C3AED", hover_color="#6D28D9", # Viola Profondo
+                                     command=self.avvia_recon)
+        self.btn_recon.pack(side="right", padx=10)
 
         # 3. Progress Bar
         self.progress_bar = ctk.CTkProgressBar(self.tab_scan, height=8)
@@ -249,6 +255,40 @@ class Dashboard(ctk.CTk):
         else:
             self.log(f"Found {len(res)} directories:", "SUCCESS")
             for r in res: self.log(f"  📂 {r}", "FOUND")
+
+    def avvia_recon(self):
+        target = self.entry_ip.get().strip()
+        if not self.validate_target(target): return
+        
+        self.log(f"Starting Deep Reconnaissance on {target}...", "INFO")
+        self.btn_recon.configure(state="disabled")
+        threading.Thread(target=self.thread_recon, args=(target,)).start()
+
+    def thread_recon(self, target):
+        # 1. Analisi Headers
+        score, report = analizza_headers(target)
+        
+        # UI Update
+        self.after(0, lambda: self.log("--- SECURITY HEADERS REPORT ---", "INFO"))
+        self.after(0, lambda: self.log(f"Security Score: {score}/6", "SUCCESS" if score >= 4 else "DANGER"))
+        
+        for line in report:
+            tag = "SUCCESS" if "✅" in line else ("WARNING" if "⚠️" in line else "DANGER")
+            self.after(0, lambda l=line, t=tag: self.log(l, t))
+            
+        # 2. Analisi Robots.txt
+        self.after(0, lambda: self.log("--- ROBOTS.TXT DISCOVERY ---", "INFO"))
+        robots = analizza_robots(target)
+        
+        if robots:
+            self.after(0, lambda: self.log(f"Found {len(robots)} disallowed paths (Interest Points):", "WARNING"))
+            for path in robots:
+                self.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "FOUND"))
+        else:
+            self.after(0, lambda: self.log("No interesting robots.txt entries found.", "INFO"))
+            
+        self.after(0, lambda: self.log("-------------------------------", "INFO"))
+        self.after(0, lambda: self.btn_recon.configure(state="normal"))
 
     def gestisci_password(self):
         pwd = genera_password(24)
