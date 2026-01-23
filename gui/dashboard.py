@@ -28,7 +28,6 @@ class Dashboard(ctk.CTk):
         self.title("Security Toolkit Pro v4.5")
         self.geometry("1100x850")
         
-        # Configurazione Grid 1x2 (Sidebar | Contenuto)
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
@@ -69,7 +68,7 @@ class Dashboard(ctk.CTk):
         self.setup_network_ui()
         self.setup_crypto_ui()
 
-        self.last_target = "" # Per la pulizia intelligente
+        self.last_target = ""
         self.show_home()
 
     def select_frame(self, name):
@@ -94,9 +93,6 @@ class Dashboard(ctk.CTk):
         lbl_welcome = ctk.CTkLabel(self.home_frame, text="Welcome, Operator", font=ctk.CTkFont(size=28, weight="bold"))
         lbl_welcome.pack(pady=(40, 10), anchor="w", padx=40)
         
-        lbl_desc = ctk.CTkLabel(self.home_frame, text="System overview and activity summary.", text_color="gray", font=ctk.CTkFont(size=14))
-        lbl_desc.pack(pady=(0, 40), anchor="w", padx=40)
-
         cards_container = ctk.CTkFrame(self.home_frame, fg_color="transparent")
         cards_container.pack(fill="x", padx=40)
         
@@ -158,7 +154,7 @@ class Dashboard(ctk.CTk):
         self.console_widget.tag_config("MUTED", foreground=COLOR_MUTED)
 
         self.btn_export = ctk.CTkButton(self.network_frame, text="EXPORT LOG", height=30, fg_color="transparent", 
-                                        border_width=1, text_color="gray", command=self.salva_report)
+                                        border_width=1, text_color="gray", command=self.salva_report, state="disabled")
         self.btn_export.grid(row=5, column=0, sticky="e")
 
         self.btn_clear = ctk.CTkButton(self.network_frame, text="CLEAR", height=30, width=80, fg_color="transparent", 
@@ -210,20 +206,20 @@ class Dashboard(ctk.CTk):
         self.console.insert("end", f"[{now}] ", "MUTED")
         self.console.insert("end", f"{text}\n", tag)
         self.console.see("end")
+        # Attiva il bottone EXPORT se c'è del contenuto
+        if self.btn_export.cget("state") == "disabled":
+            self.btn_export.configure(state="normal", text_color="white", border_color="#4B5563")
 
     def clear_console(self):
         self.console.delete("1.0", "end")
+        self.btn_export.configure(state="disabled", text_color="gray", border_color="transparent")
 
     def check_and_clear_logs(self):
-        """Pulisce la console solo se il dominio del target è cambiato."""
         current_input = self.entry_ip.get().strip()
-        # Estraiamo il dominio (es: da https://epicode.com/it -> epicode.com)
         current_domain = current_input.replace("https://", "").replace("http://", "").split("/")[0]
-        
         if self.last_target and self.last_target != current_domain:
             self.clear_console()
             self.log(f"New target detected: {current_domain}. Console cleared.", "INFO")
-        
         self.last_target = current_domain
 
     def update_strength_meter(self, event=None):
@@ -240,7 +236,7 @@ class Dashboard(ctk.CTk):
     def avvia_scan(self):
         target = self.entry_ip.get().strip()
         if not target: return
-        self.check_and_clear_logs() # Controllo pulizia
+        self.check_and_clear_logs()
         self.btn_scan.configure(state="disabled")
         self.progress_bar.set(0)
         self.log(f"Starting DNS resolution for {target}...", "INFO")
@@ -280,7 +276,7 @@ class Dashboard(ctk.CTk):
 
     def avvia_dir(self):
         t = self.entry_ip.get().strip()
-        self.check_and_clear_logs() # Controllo pulizia
+        self.check_and_clear_logs()
         self.btn_dir.configure(state="disabled")
         threading.Thread(target=lambda: self.after(0, self.mostra_dir, cerca_directory_nascoste(t))).start()
 
@@ -296,7 +292,7 @@ class Dashboard(ctk.CTk):
 
     def avvia_recon(self):
         t = self.entry_ip.get().strip()
-        self.check_and_clear_logs() # Controllo pulizia
+        self.check_and_clear_logs()
         self.btn_recon.configure(state="disabled")
         threading.Thread(target=self.thread_recon, args=(t,)).start()
 
@@ -331,8 +327,48 @@ class Dashboard(ctk.CTk):
             self.lbl_hash_res.configure(text=f"SHA-256:\n{h}")
 
     def salva_report(self):
-        c = self.console.get("1.0", "end")
-        f = filedialog.asksaveasfilename(defaultextension=".txt")
+        target = self.last_target if self.last_target else "Unknown Target"
+        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        raw_content = self.console.get("1.0", "end").strip()
+        
+        # --- GENERAZIONE REPORT PROFESSIONALE ---
+        report = []
+        report.append("="*60)
+        report.append("        🛡️ SECURITY AUDIT REPORT - PRO EDITION v5.0")
+        report.append("="*60)
+        report.append(f"TARGET     : {target}")
+        report.append(f"TIMESTAMP  : {timestamp}")
+        report.append("-" * 60)
+        report.append("\n[1] EXECUTIVE SUMMARY")
+        
+        # Analisi automatica dei rischi dai log
+        open_ports = raw_content.count("Port")
+        critical_ports = raw_content.count("🔴")
+        warnings = raw_content.count("🟡")
+        
+        report.append(f"• Total Open Ports Identified: {open_ports}")
+        report.append(f"• High Risk Findings (RED): {critical_ports}")
+        report.append(f"• Medium Risk Findings (YELLOW): {warnings}")
+        
+        if critical_ports > 0:
+            report.append("⚠️ ACTION REQUIRED: Critical services are exposed to the public internet.")
+        else:
+            report.append("✅ STATUS: No immediate critical vulnerabilities detected in standard ports.")
+
+        report.append("\n" + "-" * 60)
+        report.append("[2] FULL ANALYSIS LOGS")
+        report.append("-" * 60)
+        report.append(raw_content)
+        report.append("\n" + "="*60)
+        report.append("Generated by Security Toolkit Pro - Educational Security Suite")
+        report.append("="*60)
+        
+        final_text = "\n".join(report)
+        
+        f = filedialog.asksaveasfilename(defaultextension=".txt", 
+                                         filetypes=[("Text Report", "*.txt"), ("Markdown Report", "*.md")],
+                                         initialfile=f"Audit_Report_{target.replace('.', '_')}")
         if f:
-            with open(f, "w") as file: file.write(c)
-            messagebox.showinfo("Export", "Analysis Saved.")
+            with open(f, "w") as file:
+                file.write(final_text)
+            messagebox.showinfo("Export Success", f"Professional audit report saved as:\n{f}")
