@@ -3,6 +3,8 @@ import tkinter as tk
 from tkinter import filedialog, messagebox
 import threading
 import datetime
+import json
+import os
 from logic.password_gen import genera_password
 from logic.hash_checker import calcola_hash_file
 from logic.port_scanner import scansione_porte, ottieni_ip
@@ -25,11 +27,14 @@ class Dashboard(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Security Toolkit Pro v4.5")
+        self.title("Security Toolkit Pro v5.0")
         self.geometry("1100x850")
         
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
+
+        # --- DATA STORAGE PER REPORT ---
+        self.reset_results()
 
         # --- SIDEBAR ---
         self.sidebar_frame = ctk.CTkFrame(self, width=200, corner_radius=0)
@@ -70,6 +75,16 @@ class Dashboard(ctk.CTk):
 
         self.last_target = ""
         self.show_home()
+
+    def reset_results(self):
+        """Inizializza o resetta la struttura dati dei risultati."""
+        self.report_data = {
+            "target": "N/A",
+            "timestamp": "",
+            "scans": [],
+            "recon": {"score": 0, "headers": [], "robots": []},
+            "directories": []
+        }
 
     def select_frame(self, name):
         self.btn_home.configure(fg_color="transparent" if name != "home" else "#3B8ED0")
@@ -153,7 +168,7 @@ class Dashboard(ctk.CTk):
         self.console_widget.tag_config("INFO", foreground=COLOR_INFO)
         self.console_widget.tag_config("MUTED", foreground=COLOR_MUTED)
 
-        self.btn_export = ctk.CTkButton(self.network_frame, text="EXPORT LOG", height=30, fg_color="transparent", 
+        self.btn_export = ctk.CTkButton(self.network_frame, text="EXPORT REPORT", height=30, fg_color="transparent", 
                                         border_width=1, text_color="gray", command=self.salva_report, state="disabled")
         self.btn_export.grid(row=5, column=0, sticky="e")
 
@@ -206,21 +221,26 @@ class Dashboard(ctk.CTk):
         self.console.insert("end", f"[{now}] ", "MUTED")
         self.console.insert("end", f"{text}\n", tag)
         self.console.see("end")
-        # Attiva il bottone EXPORT se c'è del contenuto
-        if self.btn_export.cget("state") == "disabled":
-            self.btn_export.configure(state="normal", text_color="white", border_color="#4B5563")
+        
+        # Abilita export se ci sono dati reali (non solo info di sistema)
+        if tag in ["SUCCESS", "WARNING", "DANGER", "OPEN", "FOUND"]:
+            self.btn_export.configure(state="normal", text_color="white", border_color=COLOR_MUTED)
 
     def clear_console(self):
         self.console.delete("1.0", "end")
-        self.btn_export.configure(state="disabled", text_color="gray", border_color="transparent")
+        self.reset_results() # Puliamo anche i dati strutturati
+        # FIX BUG border_color: Usiamo un colore solido invece di transparent
+        self.btn_export.configure(state="disabled", text_color="gray", border_color="#2D2D2D")
 
     def check_and_clear_logs(self):
         current_input = self.entry_ip.get().strip()
         current_domain = current_input.replace("https://", "").replace("http://", "").split("/")[0]
         if self.last_target and self.last_target != current_domain:
             self.clear_console()
-            self.log(f"New target detected: {current_domain}. Console cleared.", "INFO")
+            self.log(f"New target: {current_domain}. Results reset.", "INFO")
         self.last_target = current_domain
+        self.report_data["target"] = current_domain
+        self.report_data["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
     def update_strength_meter(self, event=None):
         pwd = self.entry_test_pwd.get()
@@ -248,6 +268,7 @@ class Dashboard(ctk.CTk):
             self.after(0, lambda: self.log("DNS Resolution Failed.", "DANGER"))
             self.after(0, lambda: self.btn_scan.configure(state="normal"))
             return
+        self.after(0, lambda: self.log(f"Target Resolved: {ip}", "SUCCESS"))
         self.after(0, lambda: self.start_scan_thread(target, ip))
 
     def start_scan_thread(self, target, ip):
@@ -266,11 +287,13 @@ class Dashboard(ctk.CTk):
 
     def mostra_risultati_scan(self, risultati):
         self.btn_scan.configure(state="normal")
-        self.log("--- SCAN REPORT ---", "INFO")
+        self.log("---" + "-" * 15 + "SCAN REPORT" + "-" * 15 + "---", "INFO")
+        self.report_data["scans"] = [] # Reset scans per questo target
         for p, c, b in risultati:
             tag = "DANGER" if c == "ROSSO" else ("WARNING" if c == "GIALLO" else "SUCCESS")
             icon = "🔴" if c == "ROSSO" else ("🟡" if c == "GIALLO" else "🟢")
             self.log(f"{icon} Port {p}: {b}", tag)
+            self.report_data["scans"].append({"port": p, "risk": c, "service": b})
         val = int(self.lbl_stat_scans.cget("text")) + 1
         self.lbl_stat_scans.configure(text=str(val))
 
@@ -283,11 +306,12 @@ class Dashboard(ctk.CTk):
     def mostra_dir(self, res):
         self.btn_dir.configure(state="normal")
         if res is None:
-            self.log("Connection Error: Target unreachable or SSL violation.", "DANGER")
+            self.log("Connection Error: SSL violation or timeout.", "DANGER")
         elif not res:
             self.log("No hidden resources identified.", "WARNING")
         else:
             self.log(f"Identified {len(res)} resources:", "SUCCESS")
+            self.report_data["directories"] = res
             for r in res: self.log(f"  📂 {r}", "SUCCESS")
 
     def avvia_recon(self):
@@ -298,12 +322,16 @@ class Dashboard(ctk.CTk):
 
     def thread_recon(self, target):
         score, report = analizza_headers(target)
+        self.report_data["recon"]["score"] = score
+        self.report_data["recon"]["headers"] = report
+        
         self.after(0, lambda: self.log(f"Security Hardening Score: {score}/6", "SUCCESS" if score >= 4 else "DANGER"))
         for l in report:
             tag = "SUCCESS" if "✅" in l else ("WARNING" if "⚠️" in l else "DANGER")
             self.after(0, lambda x=l, t=tag: self.log(x, t))
         
         robots = analizza_robots(target)
+        self.report_data["recon"]["robots"] = robots if robots else []
         if robots:
             self.after(0, lambda: self.log("Robots.txt findings:", "WARNING"))
             for path in robots: self.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
@@ -327,48 +355,48 @@ class Dashboard(ctk.CTk):
             self.lbl_hash_res.configure(text=f"SHA-256:\n{h}")
 
     def salva_report(self):
-        target = self.last_target if self.last_target else "Unknown Target"
-        timestamp = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        raw_content = self.console.get("1.0", "end").strip()
+        """Apre la finestra di scelta per il Triple Export."""
+        # Creiamo una finestra popup moderna
+        popup = ctk.CTkToplevel(self) 
+        popup.title("Export Configuration")
+        popup.geometry("400x350")
+        popup.attributes("-topmost", True) # Sempre in primo piano
         
-        # --- GENERAZIONE REPORT PROFESSIONALE ---
-        report = []
-        report.append("="*60)
-        report.append("        🛡️ SECURITY AUDIT REPORT - PRO EDITION v5.0")
-        report.append("="*60)
-        report.append(f"TARGET     : {target}")
-        report.append(f"TIMESTAMP  : {timestamp}")
-        report.append("-" * 60)
-        report.append("\n[1] EXECUTIVE SUMMARY")
+        ctk.CTkLabel(popup, text="Select Export Formats", font=("Roboto", 16, "bold")).pack(pady=20)
         
-        # Analisi automatica dei rischi dai log
-        open_ports = raw_content.count("Port")
-        critical_ports = raw_content.count("🔴")
-        warnings = raw_content.count("🟡")
+        var_html = tk.BooleanVar(value=True)
+        var_json = tk.BooleanVar(value=False)
+        var_txt = tk.BooleanVar(value=False)
         
-        report.append(f"• Total Open Ports Identified: {open_ports}")
-        report.append(f"• High Risk Findings (RED): {critical_ports}")
-        report.append(f"• Medium Risk Findings (YELLOW): {warnings}")
+        ctk.CTkCheckBox(popup, text="Professional Audit (HTML)", variable=var_html).pack(pady=10, padx=50, anchor="w")
+        ctk.CTkCheckBox(popup, text="Technical Data (JSON)", variable=var_json).pack(pady=10, padx=50, anchor="w")
+        ctk.CTkCheckBox(popup, text="Simple Log (TXT)", variable=var_txt).pack(pady=10, padx=50, anchor="w")
         
-        if critical_ports > 0:
-            report.append("⚠️ ACTION REQUIRED: Critical services are exposed to the public internet.")
-        else:
-            report.append("✅ STATUS: No immediate critical vulnerabilities detected in standard ports.")
+        def confirm_export():
+            formats = []
+            if var_html.get(): formats.append("html")
+            if var_json.get(): formats.append("json")
+            if var_txt.get(): formats.append("txt")
+            
+            if not formats:
+                messagebox.showwarning("Warning", "Select at least one format!")
+                return
+            
+            # Qui chiameremo il generatore di report
+            self.process_export(formats)
+            popup.destroy()
 
-        report.append("\n" + "-" * 60)
-        report.append("[2] FULL ANALYSIS LOGS")
-        report.append("-" * 60)
-        report.append(raw_content)
-        report.append("\n" + "="*60)
-        report.append("Generated by Security Toolkit Pro - Educational Security Suite")
-        report.append("="*60)
+        ctk.CTkButton(popup, text="GENERATE REPORTS", command=confirm_export).pack(pady=30)
+
+    def process_export(self, formats):
+        from logic.report_generator import generate_reports
         
-        final_text = "\n".join(report)
-        
-        f = filedialog.asksaveasfilename(defaultextension=".txt", 
-                                         filetypes=[("Text Report", "*.txt"), ("Markdown Report", "*.md")],
-                                         initialfile=f"Audit_Report_{target.replace('.', '_')}")
-        if f:
-            with open(f, "w") as file:
-                file.write(final_text)
-            messagebox.showinfo("Export Success", f"Professional audit report saved as:\n{f}")
+        # Chiediamo dove salvare (cartella)
+        folder = filedialog.askdirectory(title="Select Output Folder")
+        if folder:
+            paths = generate_reports(self.report_data, formats, folder)
+            messagebox.showinfo("Success", f"Reports generated successfully in:\n{folder}")
+
+if __name__ == "__main__":
+    app = Dashboard()
+    app.mainloop()
