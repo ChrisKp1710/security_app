@@ -1,6 +1,6 @@
+import customtkinter as ctk
 import tkinter as tk
-from tkinter import filedialog, messagebox, scrolledtext
-from tkinter import ttk
+from tkinter import filedialog, messagebox
 import threading
 import datetime
 from logic.password_gen import genera_password
@@ -8,173 +8,265 @@ from logic.hash_checker import calcola_hash_file
 from logic.port_scanner import scansione_porte, ottieni_ip
 from logic.dir_finder import cerca_directory_nascoste
 
-class Dashboard:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Security Toolkit ULTIMATE v4.0 - DARK EDITION")
-        self.root.geometry("750x850")
-        self.root.configure(bg="#121212") # Sfondo principale scurissimo
+# --- CONFIGURAZIONE UI/UX THEME ---
+ctk.set_appearance_mode("Dark")  # Forza Dark Mode
+ctk.set_default_color_theme("blue")  # Tema base blu professionale
 
-        # --- STILE DARK PER TTK ---
-        style = ttk.Style()
-        style.theme_use('clam')
+class Dashboard(ctk.CTk):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+        self.title("Security Toolkit Pro")
+        self.geometry("950x850")
         
-        # Configurazione colori Tab
-        style.configure("TNotebook", background="#121212", borderwidth=0)
-        style.configure("TNotebook.Tab", background="#333333", foreground="#BBBBBB", padding=[10, 5], font=('Arial', 10, 'bold'))
-        style.map("TNotebook.Tab", background=[("selected", "#00E676")], foreground=[("selected", "#000000")])
+        # Grid layout configurazione principale (1x1 full expand)
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(1, weight=1)
+
+        # --- HEADER SECTION ---
+        self.create_header()
+
+        # --- NAVIGATION TABS ---
+        # Creiamo un Tabview moderno (non il vecchio Notebook)
+        self.tabview = ctk.CTkTabview(self, width=900, height=700, corner_radius=15)
+        self.tabview.grid(row=1, column=0, padx=20, pady=(10, 20), sticky="nsew")
         
-        style.configure("TFrame", background="#121212")
-        style.configure("TLabel", background="#121212", foreground="#FFFFFF")
+        # Aggiunta Tabs
+        self.tab_scan = self.tabview.add("Network Operations")
+        self.tab_tools = self.tabview.add("Crypto Lab")
+
+        # Configurazione layout interno tabs
+        self.tab_scan.grid_columnconfigure(0, weight=1)
+        self.tab_tools.grid_columnconfigure(0, weight=1)
+
+        # Build delle interfacce
+        self.setup_network_ui()
+        self.setup_crypto_ui()
+
+    def create_header(self):
+        """Header minimalista e pulito"""
+        header_frame = ctk.CTkFrame(self, fg_color="transparent", corner_radius=0)
+        header_frame.grid(row=0, column=0, sticky="ew", padx=25, pady=(25, 10))
         
-        # ProgressBar Dark
-        style.configure("Horizontal.TProgressbar", troughcolor='#333333', bordercolor='#121212', background='#00E676', lightcolor='#00E676', darkcolor='#00E676')
-
-        # --- Intestazione ---
-        header = tk.Frame(root, bg="#1E1E1E", height=60)
-        header.pack(fill="x")
-        tk.Label(header, text="🛡️ CYBER SECURITY SUITE", font=("Impact", 24), fg="#00E676", bg="#1E1E1E").pack(pady=10)
-
-        # --- SISTEMA A SCHEDE ---
-        self.tabs = ttk.Notebook(root)
-        self.tabs.pack(expand=True, fill="both", padx=10, pady=5)
-
-        self.tab_scanner = ttk.Frame(self.tabs)
-        self.tab_crypto = ttk.Frame(self.tabs)
-
-        self.tabs.add(self.tab_scanner, text="🕵️ Network Scanner")
-        self.tabs.add(self.tab_crypto, text="🔐 Crypto & Tools")
-
-        # Setup delle pagine
-        self.setup_scanner_tab()
-        self.setup_crypto_tab()
-
-    def setup_scanner_tab(self):
-        # Frame Configurazione (Sfondo scuro)
-        frame_input = tk.LabelFrame(self.tab_scanner, text=" Configurazione Target ", fg="#00E676", bg="#1E1E1E", padx=10, pady=10, font=('Arial', 10, 'bold'))
-        frame_input.pack(fill="x", padx=10, pady=10)
-
-        tk.Label(frame_input, text="Target:", font=("Arial", 11, "bold"), fg="white", bg="#1E1E1E").pack(side="left")
-        self.entry_ip = tk.Entry(frame_input, width=25, font=("Courier", 12), bg="#333333", fg="#00FF00", insertbackground="white", borderwidth=0)
-        self.entry_ip.insert(0, "epicode.com")
-        self.entry_ip.pack(side="left", padx=10)
+        title = ctk.CTkLabel(header_frame, text="Security Toolkit", 
+                             font=ctk.CTkFont(family="Roboto", size=24, weight="bold"))
+        title.pack(side="left")
         
-        self.lbl_ip = tk.Label(frame_input, text="IP: ???", fg="#03A9F4", bg="#1E1E1E", font=("Arial", 10, "bold"))
-        self.lbl_ip.pack(side="left", padx=5)
+        version = ctk.CTkLabel(header_frame, text="v2.0 Enterprise", 
+                               text_color="gray",
+                               font=ctk.CTkFont(family="Roboto", size=12))
+        version.pack(side="left", padx=10, pady=(10, 0))
 
-        # Opzioni Radio (Sfondo scuro)
-        self.var_scan_type = tk.IntVar(value=1)
-        tk.Radiobutton(frame_input, text="Rapido", variable=self.var_scan_type, value=1, bg="#1E1E1E", fg="white", selectcolor="#00E676", activebackground="#1E1E1E").pack(side="left")
-        tk.Radiobutton(frame_input, text="Full", variable=self.var_scan_type, value=2, bg="#1E1E1E", fg="white", selectcolor="#00E676", activebackground="#1E1E1E").pack(side="left", padx=5)
+    # =========================================================================
+    # 🌍 NETWORK SCANNER UI
+    # =========================================================================
+    def setup_network_ui(self):
+        # 1. Target Configuration Card
+        self.frame_target = ctk.CTkFrame(self.tab_scan, corner_radius=10)
+        self.frame_target.grid(row=0, column=0, sticky="ew", padx=10, pady=10)
+        self.frame_target.grid_columnconfigure(1, weight=1)
 
-        # Pulsanti
-        frame_btns = tk.Frame(self.tab_scanner, bg="#121212")
-        frame_btns.pack(fill="x", padx=10, pady=5)
+        ctk.CTkLabel(self.frame_target, text="Target Host:", font=("Roboto", 14)).grid(row=0, column=0, padx=20, pady=20)
         
-        tk.Button(frame_btns, text="🚀 START SCAN", bg="#00E676", fg="black", font=("Arial", 11, "bold"), width=20, command=self.avvia_scan).pack(side="left", padx=5)
-        tk.Button(frame_btns, text="📂 DIR BRUTE", bg="#FFA000", fg="black", font=("Arial", 11, "bold"), width=20, command=self.avvia_dir).pack(side="left", padx=5)
+        self.entry_ip = ctk.CTkEntry(self.frame_target, placeholder_text="e.g. scanme.nmap.org", 
+                                     height=40, font=("Menlo", 13), border_width=1)
+        self.entry_ip.grid(row=0, column=1, sticky="ew", padx=(0, 20), pady=20)
+        self.entry_ip.insert(0, "scanme.nmap.org")
 
-        # Barra Progresso
-        self.progress = ttk.Progressbar(self.tab_scanner, orient="horizontal", mode="determinate", style="Horizontal.TProgressbar")
-        self.progress.pack(fill="x", padx=20, pady=10)
-        self.lbl_status = tk.Label(self.tab_scanner, text="Ready for action.", fg="#888888", bg="#121212", font=("Arial", 9, "italic"))
-        self.lbl_status.pack()
-
-        # Console (Il cuore della Dark Mode)
-        self.console = scrolledtext.ScrolledText(self.tab_scanner, font=("Courier New", 11), bg="#0A0A0A", fg="#FFFFFF", borderwidth=0, padx=10, pady=10)
-        self.console.pack(padx=10, pady=5, fill="both", expand=True)
+        # 2. Controls & Options
+        self.frame_controls = ctk.CTkFrame(self.tab_scan, fg_color="transparent")
+        self.frame_controls.grid(row=1, column=0, sticky="ew", padx=10, pady=(0, 10))
         
-        # TAG COLORI CONSOLE (Ancora più accesi)
-        self.console.tag_config("RED", foreground="#FF1744", font=("Courier New", 11, "bold"))
-        self.console.tag_config("GREEN", foreground="#00E676", font=("Courier New", 11, "bold"))
-        self.console.tag_config("YELLOW", foreground="#FFEA00", font=("Courier New", 11, "bold"))
-        self.console.tag_config("CYAN", foreground="#00B0FF", font=("Courier New", 11, "bold"))
-        self.console.tag_config("WHITE", foreground="#FFFFFF")
+        self.scan_mode = ctk.CTkSegmentedButton(self.frame_controls, values=["Quick Scan", "Full Range"], 
+                                                font=("Roboto", 12, "bold"))
+        self.scan_mode.set("Quick Scan")
+        self.scan_mode.pack(side="left")
 
-        tk.Button(self.tab_scanner, text="💾 SAVE LOG", bg="#03DAC6", fg="#000000", font=("Arial", 11, "bold"), width=20, command=self.salva_report).pack(pady=10)
-
-    def setup_crypto_tab(self):
-        # Password Section
-        lf_pwd = tk.LabelFrame(self.tab_crypto, text=" Generator ", fg="#00E676", bg="#1E1E1E", padx=20, pady=20, font=('Arial', 10, 'bold'))
-        lf_pwd.pack(fill="x", padx=20, pady=20)
+        self.btn_scan = ctk.CTkButton(self.frame_controls, text="START SCAN", height=40, width=150,
+                                      font=("Roboto", 13, "bold"), fg_color="#3B8ED0", hover_color="#1E40AF",
+                                      command=self.avvia_scan)
+        self.btn_scan.pack(side="right", padx=10)
         
-        self.btn_pwd = tk.Button(lf_pwd, text="GENERATE SECURE PASSWORD", bg="#00B0FF", fg="white", font=("Arial", 12, "bold"), command=self.gestisci_password)
+        self.btn_dir = ctk.CTkButton(self.frame_controls, text="DIR BUST", height=40, width=120,
+                                     font=("Roboto", 13, "bold"), fg_color="#4B5563", hover_color="#374151",
+                                     command=self.avvia_dir)
+        self.btn_dir.pack(side="right")
+
+        # 3. Progress Bar
+        self.progress_bar = ctk.CTkProgressBar(self.tab_scan, height=8)
+        self.progress_bar.set(0)
+        self.progress_bar.grid(row=2, column=0, sticky="ew", padx=15, pady=(5, 15))
+        
+        self.lbl_status = ctk.CTkLabel(self.tab_scan, text="Ready to scan.", text_color="gray", font=("Roboto", 11))
+        self.lbl_status.grid(row=3, column=0, sticky="w", padx=20)
+
+        # 4. Console Log (Modernizzata)
+        self.console = ctk.CTkTextbox(self.tab_scan, font=("Menlo", 12), fg_color="#0F172A", text_color="#E2E8F0",
+                                      activate_scrollbars=True, corner_radius=10)
+        self.console.grid(row=4, column=0, sticky="nsew", padx=10, pady=10)
+        self.tab_scan.grid_rowconfigure(4, weight=1) # Espande console
+
+        # Configurazione Tag Colori Console (usando insert con tag non supportato nativamente da CTkTextbox come Tkinter standard,
+        # quindi useremo un workaround o formatting semplice per ora, o useremo tk.Text wrappato se necessario colori specifici.
+        # CTkTextbox non supporta tag_config complessi come tk.Text. 
+        # SOLUZIONE PRO: Useremo un widget tk.Text 'wrappato' dentro un frame CTk per avere i colori,
+        # oppure accettiamo testo monocromatico ma pulito.
+        # DECISIONE: Per ora monocromatico pulito per coerenza UI, oppure custom implementation.)
+        
+        # Export Button
+        btn_save = ctk.CTkButton(self.tab_scan, text="Export Report", height=30, fg_color="transparent", 
+                                 border_width=1, border_color="gray", text_color="gray", hover_color="#1E293B",
+                                 command=self.salva_report)
+        btn_save.grid(row=5, column=0, sticky="e", padx=20, pady=10)
+
+
+    # =========================================================================
+    # 🔐 CRYPTO LAB UI
+    # =========================================================================
+    def setup_crypto_ui(self):
+        # Container centrale
+        center_frame = ctk.CTkFrame(self.tab_tools, fg_color="transparent")
+        center_frame.pack(fill="both", expand=True, padx=40, pady=20)
+
+        # -- Password Gen --
+        card_pwd = ctk.CTkFrame(center_frame, corner_radius=15)
+        card_pwd.pack(fill="x", pady=20)
+        
+        ctk.CTkLabel(card_pwd, text="Secure Password Generator", font=("Roboto", 16, "bold")).pack(pady=(20, 10))
+        
+        self.btn_pwd = ctk.CTkButton(card_pwd, text="Generate & Copy", height=50, font=("Roboto", 14, "bold"),
+                                     fg_color="#10B981", hover_color="#059669", # Smeraldo
+                                     command=self.gestisci_password)
         self.btn_pwd.pack(pady=10)
-        self.lbl_pwd_res = tk.Label(lf_pwd, text="---", font=("Courier", 18, "bold"), fg="#00E676", bg="#333", width=30)
-        self.lbl_pwd_res.pack(pady=10)
-
-        # Hash Section
-        lf_hash = tk.LabelFrame(self.tab_crypto, text=" Hash Integrity ", fg="#00E676", bg="#1E1E1E", padx=20, pady=20, font=('Arial', 10, 'bold'))
-        lf_hash.pack(fill="x", padx=20, pady=20)
         
-        tk.Button(lf_hash, text="CHECK FILE HASH", bg="#7C4DFF", fg="white", font=("Arial", 11, "bold"), command=self.gestisci_hash).pack(pady=10)
-        self.lbl_hash_res = tk.Label(lf_hash, text="No file selected", font=("Courier", 10), fg="#AAA", bg="#1E1E1E", wraplength=600)
-        self.lbl_hash_res.pack(pady=5)
+        self.lbl_pwd_res = ctk.CTkEntry(card_pwd, placeholder_text="---", justify="center",
+                                        font=("Menlo", 20), height=50, border_width=0, fg_color="#1E293B")
+        self.lbl_pwd_res.pack(fill="x", padx=40, pady=(10, 30))
 
-    def log(self, testo, colore="WHITE"):
-        self.console.insert(tk.END, f"[{datetime.datetime.now().strftime('%H:%M:%S')}] ", "WHITE")
-        self.console.insert(tk.END, f"{testo}\n", colore)
-        self.console.see(tk.END)
+        # -- Hash Checker --
+        card_hash = ctk.CTkFrame(center_frame, corner_radius=15)
+        card_hash.pack(fill="x", pady=20)
+        
+        ctk.CTkLabel(card_hash, text="File Integrity Checker (SHA-256)", font=("Roboto", 16, "bold")).pack(pady=(20, 10))
+        
+        self.btn_hash = ctk.CTkButton(card_hash, text="Select File...", height=40, font=("Roboto", 13),
+                                      fg_color="#6366F1", hover_color="#4F46E5", # Indaco
+                                      command=self.gestisci_hash)
+        self.btn_hash.pack(pady=10)
+        
+        self.lbl_hash_res = ctk.CTkLabel(card_hash, text="No file selected", font=("Menlo", 12), text_color="gray", wraplength=600)
+        self.lbl_hash_res.pack(pady=(10, 30))
+
+    # =========================================================================
+    # 🧠 LOGIC & HELPERS
+    # =========================================================================
+    
+    def log(self, text, type="INFO"):
+        """Scrive sulla console con timestamp"""
+        now = datetime.datetime.now().strftime('%H:%M:%S')
+        prefix = f"[{now}] [{type}] "
+        full_msg = f"{prefix}{text}\n"
+        self.console.insert("end", full_msg)
+        self.console.see("end")
+
+    def validate_target(self, target):
+        if not target or len(target) < 3:
+            return False
+        return True
 
     def avvia_scan(self):
-        target = self.entry_ip.get()
+        target = self.entry_ip.get().strip()
+        if not self.validate_target(target):
+            self.log("Invalid target specified.", "ERROR")
+            return
+
+        self.btn_scan.configure(state="disabled")
+        self.progress_bar.set(0)
+        self.log(f"Starting DNS resolution for {target}...", "INFO")
+        
+        threading.Thread(target=self._pre_scan_resolve, args=(target,)).start()
+
+    def _pre_scan_resolve(self, target):
         ip = ottieni_ip(target)
         if not ip:
-            self.log("ERROR: Host resolution failed.", "RED")
+            self.after(0, lambda: self.log("DNS Resolution Failed.", "ERROR"))
+            self.after(0, lambda: self.btn_scan.configure(state="normal"))
             return
         
-        self.lbl_ip.config(text=f"IP: {ip}")
-        self.log(f"Starting scan on {target} ({ip})...", "CYAN")
-        tipo = self.var_scan_type.get()
-        porte = [21, 22, 23, 25, 53, 80, 110, 443, 3306, 3389, 5432, 8080] if tipo == 1 else (1, 1000)
-        self.progress['value'] = 0
+        self.after(0, lambda: self.log(f"Target Resolved: {ip}", "SUCCESS"))
+        self.after(0, lambda: self.start_scan_thread(target, ip))
+
+    def start_scan_thread(self, target, ip):
+        self.after(0, lambda: self.log(f"Starting port scan on {ip}...", "INFO"))
+        mode = self.scan_mode.get()
+        # Logica porte
+        porte = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 8080, 8443] if mode == "Quick Scan" else (1, 1000)
+        
         threading.Thread(target=self.thread_scan, args=(target, porte)).start()
 
     def thread_scan(self, target, porte):
         risultati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso)
-        self.root.after(0, self.mostra_risultati_scan, risultati)
+        self.after(0, self.mostra_risultati_scan, risultati)
 
     def aggiorna_progresso(self, corrente, totale, porta_attuale):
-        perc = (corrente / totale) * 100
-        msg = f"Scanning Port {porta_attuale}... ({int(perc)}%)"
-        self.root.after(0, lambda: self.progress.configure(value=perc))
-        self.root.after(0, lambda: self.lbl_status.configure(text=msg))
+        perc = corrente / totale
+        self.after(0, lambda: self.progress_bar.set(perc))
+        self.after(0, lambda: self.lbl_status.configure(text=f"Scanning port {porta_attuale} ({int(perc*100)}%)"))
 
     def mostra_risultati_scan(self, risultati):
-        self.lbl_status.config(text="Scan Complete.")
-        self.log("--- SCAN REPORT ---", "CYAN")
-        if not risultati: self.log("No open ports found.", "YELLOW")
+        self.btn_scan.configure(state="normal")
+        self.lbl_status.configure(text="Scan completed.")
+        self.progress_bar.set(1.0)
+        
+        self.log("--- SCAN REPORT ---", "INFO")
+        if not risultati: 
+            self.log("No open ports found.", "WARNING")
+        
         for porta, colore, banner in risultati:
-            tag = "RED" if colore == "ROSSO" else ("YELLOW" if colore == "GIALLO" else "GREEN")
-            self.log(f"[+] PORT {porta} OPEN | {banner}", tag)
+            # Usiamo icone unicode per compensare la mancanza di colori nel testo
+            icon = "🔴" if colore == "ROSSO" else ("🟡" if colore == "GIALLO" else "🟢")
+            self.log(f"{icon} Port {porta}: {banner}", "OPEN")
+        
+        self.log("-------------------", "INFO")
+
+    def avvia_dir(self):
+        target = self.entry_ip.get().strip()
+        if not self.validate_target(target): return
+        
+        self.log(f"Starting directory brute-force on {target}...", "INFO")
+        self.btn_dir.configure(state="disabled")
+        threading.Thread(target=lambda: self.after(0, self.mostra_dir, cerca_directory_nascoste(target))).start()
+
+    def mostra_dir(self, res):
+        self.btn_dir.configure(state="normal")
+        if not res: 
+            self.log("No hidden directories found.", "WARNING")
+        else:
+            self.log(f"Found {len(res)} directories:", "SUCCESS")
+            for r in res: self.log(f"  📂 {r}", "FOUND")
 
     def gestisci_password(self):
-        pwd = genera_password(16)
-        self.lbl_pwd_res.config(text=pwd)
-        self.root.clipboard_clear()
-        self.root.clipboard_append(pwd)
-        messagebox.showinfo("Clipboard", "Password copied to clipboard!")
+        pwd = genera_password(24)
+        self.lbl_pwd_res.delete(0, "end")
+        self.lbl_pwd_res.insert(0, pwd)
+        
+        self.clipboard_clear()
+        self.clipboard_append(pwd)
+        
+        # Feedback su bottone
+        self.btn_pwd.configure(text="Copied!", fg_color="#065F46")
+        self.after(2000, lambda: self.btn_pwd.configure(text="Generate & Copy", fg_color="#10B981"))
 
     def gestisci_hash(self):
         f = filedialog.askopenfilename()
         if f:
             h = calcola_hash_file(f)
-            self.lbl_hash_res.config(text=f"File: {f.split('/')[-1]}\nSHA256: {h}", fg="#00E676")
-
-    def avvia_dir(self):
-        t = self.entry_ip.get()
-        self.log(f"Enumerating directories on {t}...", "CYAN")
-        threading.Thread(target=lambda: self.root.after(0, self.mostra_dir, cerca_directory_nascoste(t))).start()
-
-    def mostra_dir(self, res):
-        if not res: self.log("No hidden directories found.", "GREEN")
-        else:
-            self.log(f"Found {len(res)} directories:", "YELLOW")
-            for r in res: self.log(f"  > {r}", "YELLOW")
+            self.lbl_hash_res.configure(text=f"SHA256: {h}", text_color="#E2E8F0")
+            self.log(f"Hashed file: {f.split('/')[-1]}", "INFO")
 
     def salva_report(self):
-        contenuto = self.console.get("1.0", tk.END)
+        contenuto = self.console.get("1.0", "end")
         f = filedialog.asksaveasfilename(defaultextension=".txt")
         if f:
             with open(f, "w") as file: file.write(contenuto)
-            messagebox.showinfo("Saved", "Log saved successfully!")
+            messagebox.showinfo("Export", "Log exported successfully!")
