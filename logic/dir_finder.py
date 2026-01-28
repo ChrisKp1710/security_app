@@ -1,16 +1,29 @@
 import http.client
 import uuid
 
-def cerca_directory_nascoste(target):
+def cerca_directory_nascoste(target, wordlist_path=None):
     """
     Cerca cartelle comuni su un sito web con logica "Smart 404 Detection"
     per evitare falsi positivi su siti React/SPA.
+    Accetta una wordlist esterna opzionale.
     """
-    # Lista di cartelle comuni da cercare
-    wordlist = [
+    # Lista di cartelle comuni da cercare (Fallback)
+    default_wordlist = [
         "/admin", "/login", "/wp-admin", "/dashboard", "/backup", 
         "/private", "/test", "/user", "/api", "/config", "/db"
     ]
+    
+    wordlist = []
+    if wordlist_path:
+        try:
+            with open(wordlist_path, 'r', encoding='utf-8', errors='ignore') as f:
+                wordlist = [line.strip() for line in f if line.strip()]
+        except Exception:
+            # Fallback silenzioso se il file non si apre
+            wordlist = default_wordlist
+    else:
+        wordlist = default_wordlist
+
     trovate = []
     
     # 1. Pulizia e preparazione target
