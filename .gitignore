@@ -137,3 +137,7 @@ dmypy.json
 # Windows
 Thumbs.db
 eviews.lnk
+
+#files
+*.zip
+test_file.txt
