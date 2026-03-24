@@ -9,7 +9,7 @@ from logic.crypto.password_generator import genera_password
 from logic.crypto.hash_verifier import calcola_hash_file
 from logic.network.port_scanner import scansione_porte, ottieni_ip
 from logic.network.directory_buster import cerca_directory_nascoste
-from logic.network.http_recon import analizza_headers, analizza_robots
+from logic.network.http_recon import analizza_headers, analizza_robots, analizza_verbi_http
 from logic.crypto.password_analyzer import calcola_robustezza
 from logic.crypto.hash_identifier import identifica_hash
 from logic.crypto.data_encoders import encode_data, decode_data
@@ -616,6 +616,15 @@ class Dashboard(ctk.CTk):
             for path in robots: self.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
         else:
             self.after(0, lambda: self.log("Robots.txt is empty or missing.", "INFO"))
+            
+        self.after(0, lambda: self.log("--- HTTP METHODS ANALYSIS ---", "INFO"))
+        verbi_report = analizza_verbi_http(target)
+        for r in verbi_report:
+            if "✅" in r: tag = "SUCCESS"
+            elif "❌" in r: tag = "DANGER"
+            elif "ℹ️" in r: tag = "INFO"
+            else: tag = "WARNING"
+            self.after(0, lambda x=r, t=tag: self.log(x, t))
             
         self.after(0, lambda: self.log_completion("Web/OSINT Recon"))
         self.after(0, lambda: self.btn_recon.configure(state="normal"))

@@ -102,3 +102,59 @@ def analizza_robots(target):
 
     except Exception:
         return None
+
+def analizza_verbi_http(target):
+    """
+    Testa i verbi HTTP (Methods) supportati dal server per individuare
+    metodi pericolosi abilitati (es. TRACE, PUT, OPTIONS).
+    """
+    if not target.startswith("http"): target = "https://" + target
+    parsed = urllib.parse.urlparse(target)
+    host = parsed.netloc
+    
+    report = []
+    
+    # Iniziamo la connessione protetta via try-finally (http.client compatibile)
+    try:
+        conn = http.client.HTTPSConnection(host, timeout=5)
+        try:
+            # 1. Test OPTIONS (Controllo passivo)
+            conn.request("OPTIONS", "/", headers={"User-Agent": "Mozilla/5.0 SecurityScanner/2.0"})
+            res_options = conn.getresponse()
+            res_options.read()
+            
+            allowed = res_options.getheader("Allow") or res_options.getheader("Public")
+            if allowed:
+                report.append(f"ℹ️ Modalità HTTP consentite trovate: {allowed}")
+            else:
+                report.append("ℹ️ Nessun header 'Allow' esplicito fornito via OPTIONS.")
+
+            # 2. Test TRACE (Controllo attivo per XST)
+            xst_payload = "XST-TEST-PAYLOAD"
+            conn.request("TRACE", "/", headers={"User-Agent": "Mozilla/5.0 SecurityScanner/2.0", "X-Test": xst_payload})
+            res_trace = conn.getresponse()
+            trace_body = res_trace.read().decode('utf-8', errors='ignore')
+            
+            if res_trace.status == 200 and xst_payload in trace_body:
+                report.append("❌ CRITICO: HTTP TRACE abilitato (Rischio Cross-Site Tracing XST). Payload riflesso!")
+            else:
+                report.append("✅ HTTP TRACE è disabilitato/sicuro.")
+
+            # 3. Test PUT (Scrittura file abusivi)
+            conn.request("PUT", "/test_sec_app_upload.txt", body="test", headers={"User-Agent": "Mozilla/5.0 SecurityScanner/2.0"})
+            res_put = conn.getresponse()
+            res_put.read()
+            
+            if res_put.status in [200, 201]:
+                report.append("❌ CRITICO: HTTP PUT consente operazione di Arbitrary File Upload su webroot!")
+            elif res_put.status in [401, 403]:
+                report.append("⚠️ HTTP PUT bloccato da 401/403 (Permessi Insufficienti, analizzare se bypassabile).")
+            else:
+                report.append("✅ HTTP PUT correttamente bloccato o non implementato.")
+
+        finally:
+            conn.close()
+
+        return report
+    except Exception as e:
+        return [f"Errore Analisi Verbi HTTP: {str(e)}"]
