@@ -490,6 +490,11 @@ class Dashboard(ctk.CTk):
         if tag in ["SUCCESS", "WARNING", "DANGER", "OPEN", "FOUND"]:
             self.btn_export.configure(state="normal", text_color="white", border_color=COLOR_MUTED)
 
+    def log_completion(self, task_name):
+        self.log("="*45, "MUTED")
+        self.log(f"✅ {task_name.upper()} COMPLETED", "SUCCESS")
+        self.log("="*45 + "\n", "MUTED")
+
     def clear_console(self):
         self.console.delete("1.0", "end")
         self.reset_results() # Puliamo anche i dati strutturati
@@ -560,6 +565,7 @@ class Dashboard(ctk.CTk):
             self.report_data["scans"].append({"port": p, "risk": c, "service": b})
         val = int(self.lbl_stat_scans.cget("text")) + 1
         self.lbl_stat_scans.configure(text=str(val))
+        self.log_completion("Port Scan")
 
     def load_wordlist(self):
         f = filedialog.askopenfilename(filetypes=[("Text Files", "*.txt"), ("All Files", "*.*")])
@@ -584,6 +590,8 @@ class Dashboard(ctk.CTk):
             self.log(f"Identified {len(res)} resources:", "SUCCESS")
             self.report_data["directories"] = res
             for r in res: self.log(f"  📂 {r}", "SUCCESS")
+        
+        self.log_completion("Directory Busting")
 
     def avvia_recon(self):
         t = self.entry_ip.get().strip()
@@ -608,6 +616,8 @@ class Dashboard(ctk.CTk):
             for path in robots: self.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
         else:
             self.after(0, lambda: self.log("Robots.txt is empty or missing.", "INFO"))
+            
+        self.after(0, lambda: self.log_completion("Web/OSINT Recon"))
         self.after(0, lambda: self.btn_recon.configure(state="normal"))
 
     def avvia_ssl(self):
@@ -639,6 +649,8 @@ class Dashboard(ctk.CTk):
                 self.log(f"  🔗 {sub}", "SUCCESS")
         else:
             self.log("No Subject Alternative Names found.", "MUTED")
+            
+        self.log_completion("SSL Inspection")
 
     def gestisci_password(self):
         pwd = genera_password(24)

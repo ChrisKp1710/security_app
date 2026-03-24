@@ -37,7 +37,8 @@ def cerca_directory_nascoste(target, wordlist_path=None):
 
     try:
         # Timeout leggermente più alto per stabilità
-        with http.client.HTTPSConnection(target, timeout=4) as conn:
+        conn = http.client.HTTPSConnection(target, timeout=4)
+        try:
             
             # --- FASE 1: CALIBRAZIONE (Smart 404) ---
             # Cerchiamo un path casuale che sicuramente NON esiste
@@ -125,7 +126,9 @@ def cerca_directory_nascoste(target, wordlist_path=None):
                 except (http.client.HTTPException, OSError, TimeoutError):
                     # Ignora errori di rete su singola richiesta
                     pass
-                    
+        finally:
+            conn.close()
+            
     except (http.client.HTTPException, OSError, TimeoutError):
         # Restituiamo una tupla speciale o None per indicare errore critico
         return None
