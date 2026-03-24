@@ -5,16 +5,16 @@ import threading
 import datetime
 import json
 import os
-from logic.password_gen import genera_password
-from logic.hash_checker import calcola_hash_file
-from logic.port_scanner import scansione_porte, ottieni_ip
-from logic.dir_finder import cerca_directory_nascoste
-from logic.web_recon import analizza_headers, analizza_robots
-from logic.password_strength import calcola_robustezza
-from logic.hash_id import identifica_hash
-from logic.encoders import encode_data, decode_data
-from logic.cracker import BruteForceManager
-from logic.gpu_bridge import generate_gpu_package, check_tools, crack_with_hashcat
+from logic.crypto.password_generator import genera_password
+from logic.crypto.hash_verifier import calcola_hash_file
+from logic.network.port_scanner import scansione_porte, ottieni_ip
+from logic.network.directory_buster import cerca_directory_nascoste
+from logic.network.http_recon import analizza_headers, analizza_robots
+from logic.crypto.password_analyzer import calcola_robustezza
+from logic.crypto.hash_identifier import identifica_hash
+from logic.crypto.data_encoders import encode_data, decode_data
+from logic.cracking.zip_bruteforcer import BruteForceManager
+from logic.cracking.hashcat_gpu_bridge import generate_gpu_package, check_tools, crack_with_hashcat
 import queue
 import time
 
@@ -726,7 +726,7 @@ class Dashboard(ctk.CTk):
         ctk.CTkButton(popup, text="GENERATE REPORTS", command=confirm_export).pack(pady=30)
 
     def process_export(self, formats):
-        from logic.report_generator import generate_reports
+        from logic.utils.report_exporter import generate_reports
         
         # Chiediamo dove salvare (cartella)
         folder = filedialog.askdirectory(title="Select Output Folder")

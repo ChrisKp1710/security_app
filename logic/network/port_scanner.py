@@ -54,7 +54,7 @@ def ottieni_ip(target):
         # Pulizia base per il DNS
         target = target.strip().replace("https://", "").replace("http://", "").split("/")[0]
         return socket.gethostbyname(target)
-    except:
+    except socket.gaierror:
         return None
 
 def scansione_porte(target, range_porte, callback_progress=None):
@@ -82,50 +82,48 @@ def scansione_porte(target, range_porte, callback_progress=None):
         if callback_progress:
             callback_progress(index + 1, totale, porta)
 
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.settimeout(0.6) # Timeout leggermente aumentato per stabilità
         try:
-            res = s.connect_ex((ip, porta))
-            if res == 0:
-                # Porta Aperta -> Banner Grabbing
-                raw_banner_text = ""
-                try:
-                    # Costruiamo una richiesta HTTP/1.1 standard
-                    req = f"HEAD / HTTP/1.1\r\nHost: {clean_host}\r\nUser-Agent: SecurityScanner/1.0\r\nConnection: close\r\n\r\n"
-                    
-                    s.send(req.encode()) 
-                    
-                    raw_data = s.recv(2048)
-                    decoded = raw_data.decode('utf-8', errors='ignore')
-                    
-                    # Parsing della risposta
-                    lines = decoded.split('\r\n')
-                    first_line = lines[0].strip()
-                    server_header = next((line for line in lines if line.lower().startswith("server:")), None)
-                    
-                    if server_header:
-                        # Estraiamo solo il valore del server header (es. Server: nginx -> nginx)
-                        srv_val = server_header.split(":", 1)[1].strip()
-                        raw_banner_text = srv_val
-                    elif first_line:
-                        raw_banner_text = first_line
-                    else:
-                        raw_banner_text = decoded.strip()[:50]
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                s.settimeout(0.6) # Timeout leggermente aumentato per stabilità
+                res = s.connect_ex((ip, porta))
+                if res == 0:
+                    # Porta Aperta -> Banner Grabbing
+                    raw_banner_text = ""
+                    try:
+                        # Costruiamo una richiesta HTTP/1.1 standard
+                        req = f"HEAD / HTTP/1.1\r\nHost: {clean_host}\r\nUser-Agent: SecurityScanner/1.0\r\nConnection: close\r\n\r\n"
                         
-                except:
-                    pass
-                
-                # Cleanup caratteri
-                raw_banner_text = ''.join(c for c in raw_banner_text if c.isprintable())[:80]
-                
-                # --- INTELLIGENCE STEP: ANALISI DEL SERVIZIO ---
-                descrizione_servizio = analyze_service(raw_banner_text, porta)
+                        s.send(req.encode()) 
+                        
+                        raw_data = s.recv(2048)
+                        decoded = raw_data.decode('utf-8', errors='ignore')
+                        
+                        # Parsing della risposta
+                        lines = decoded.split('\r\n')
+                        first_line = lines[0].strip()
+                        server_header = next((line for line in lines if line.lower().startswith("server:")), None)
+                        
+                        if server_header:
+                            # Estraiamo solo il valore del server header (es. Server: nginx -> nginx)
+                            srv_val = server_header.split(":", 1)[1].strip()
+                            raw_banner_text = srv_val
+                        elif first_line:
+                            raw_banner_text = first_line
+                        else:
+                            raw_banner_text = decoded.strip()[:50]
+                            
+                    except (socket.timeout, socket.error, ConnectionError):
+                        pass
+                    
+                    # Cleanup caratteri
+                    raw_banner_text = ''.join(c for c in raw_banner_text if c.isprintable())[:80]
+                    
+                    # --- INTELLIGENCE STEP: ANALISI DEL SERVIZIO ---
+                    descrizione_servizio = analyze_service(raw_banner_text, porta)
 
-                colore = RISCHIO_PORTE.get(porta, "GIALLO")
-                risultati.append((porta, colore, descrizione_servizio))
-        except:
+                    colore = RISCHIO_PORTE.get(porta, "GIALLO")
+                    risultati.append((porta, colore, descrizione_servizio))
+        except (socket.timeout, socket.error, ConnectionError, OSError):
             pass
-        finally:
-            s.close()
     
     return risultati
