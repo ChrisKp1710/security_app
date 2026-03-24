@@ -15,6 +15,7 @@ from logic.crypto.hash_identifier import identifica_hash
 from logic.crypto.data_encoders import encode_data, decode_data
 from logic.cracking.zip_bruteforcer import BruteForceManager
 from logic.cracking.hashcat_gpu_bridge import generate_gpu_package, check_tools, crack_with_hashcat
+from logic.network.ssl_inspector import get_ssl_details
 import queue
 import time
 
