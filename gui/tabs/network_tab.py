@@ -4,6 +4,15 @@ from tkinter import filedialog, messagebox
 import threading
 import datetime
 import os
+import time
+import queue
+import datetime
+from io import StringIO
+from rich.console import Console
+from rich.panel import Panel
+from rich.table import Table
+from rich import box
+from rich.markup import escape
 from logic.network.port_scanner import scansione_porte, ottieni_ip
 from logic.network.directory_buster import cerca_directory_nascoste
 from logic.network.http_recon import analizza_headers, analizza_robots, analizza_verbi_http
@@ -58,8 +67,10 @@ class NetworkTab(ctk.CTkFrame):
         self.lbl_status = ctk.CTkLabel(self, text="System Ready.", text_color="gray", font=("Roboto", 11))
         self.lbl_status.grid(row=3, column=0, sticky="w")
 
-        self.console = ctk.CTkTextbox(self, font=("Menlo", 12), fg_color="#0F172A", corner_radius=12)
-        self.console.grid(row=4, column=0, sticky="nsew", pady=15)
+        # Console log con Font Monospace per allineamento perfetto delle tabelle
+        self.console = ctk.CTkTextbox(self, height=450, fg_color="#0F172A", 
+                                      font=("Consolas", 13) if os.name == "nt" else ("Courier", 13))
+        self.console.grid(row=4, column=0, sticky="nsew", padx=20, pady=(0, 20))
         
         self.console_widget = self.console._textbox
         self.console_widget.tag_config("SUCCESS", foreground=COLOR_SUCCESS)
@@ -136,14 +147,14 @@ class NetworkTab(ctk.CTkFrame):
         """Workflow completo di scansione gestito come singolo task."""
         ip = ottieni_ip(target)
         if not ip:
-            self.dashboard.after(0, lambda: self.log("DNS Resolution Failed.", "DANGER"))
+            panel_err = self._rich_render("CRITICAL ERROR: Could not resolve target host.", title="DNS FAILURE")
+            self.dashboard.after(0, lambda: self.log(panel_err, "DANGER"))
             self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0"))
             return
 
-        if stop_event and stop_event.is_set(): return
-        
         # Ripristiniamo il pulsante in modalità STOP ora che il task è partito
         self.dashboard.after(0, lambda: self.btn_scan.configure(text="STOP SCAN", fg_color="#EF4444", state="normal"))
+        self.dashboard.after(0, lambda: self.log(f"TARGET RESOLVED: {ip}", "SUCCESS"))
         
         mode = self.scan_mode.get()
         porte = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 8080, 8443] if mode == "Quick Scan" else (1, 1000)
@@ -172,72 +183,80 @@ class NetworkTab(ctk.CTkFrame):
         self.dashboard.after(0, lambda: self.progress_bar.set(perc))
         self.dashboard.after(0, lambda: self.lbl_status.configure(text=f"Probing port {porta_attuale}..."))
 
+    def _rich_render(self, renderable, title=None, box_style=box.ASCII):
+        """Motore di rendering Rich con stabilità ASCII totale."""
+        buf = StringIO()
+        # Larghezza contenuta per evitare wrapping e frammentazione
+        cons = Console(file=buf, width=60, force_terminal=False, color_system=None)
+        
+        if isinstance(renderable, str):
+            renderable = Panel(escape(renderable), title=title, box=box_style)
+            
+        cons.print(renderable)
+        return buf.getvalue().rstrip()
+
     def mostra_risultati_scan(self, risultati, num_scansionati):
         self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0")
-        self.log("---" + "-" * 15 + "SCAN REPORT" + "-" * 15 + "---", "INFO")
-        self.dashboard.report_data["scans"] = [] 
-        
-        # --- CONFIGURAZIONE ICONE COMPATIBILI (Unicode Standard per Windows) ---
-        ICON_MAP = {
-            21: "[FTP]", 22: "[SSH]", 23: "[TELNET]", 25: "[SMTP]", 53: "[DNS]", 
-            80: "[HTTP]", 110: "[POP3]", 143: "[IMAP]", 443: "[HTTPS]", 445: "[SMB]",
-            3306: "[SQL]", 5432: "[SQL]", 3389: "[RDP]", 8080: "[HTTP-ALT]", 8443: "[HTTPS-ALT]"
-        }
-        
         stats = {"total": num_scansionati, "identified": 0, "unknown": 0, "high_risk": 0}
         is_smart = self.dashboard.settings.get("network", "smart_log")
         unknown_group = [] 
         
+        # Tabella Risultati Rich (Uso ASCII per stabilità totale)
+        table = Table(title="[ PORT SCAN RESULTS ]", box=box.ASCII_DOUBLE_HEAD, show_header=True, width=60)
+        table.add_column("PORT", width=10)
+        table.add_column("STATUS", width=10)
+        table.add_column("SERVICE / BANNER", width=34)
+
         def flush_unknown():
-            """Stampa il blocco di porte Unknown accumulato."""
             if not unknown_group: return
-            if not is_smart:
-                for p in unknown_group:
-                    self.log(f"🟡 Port {p}: Unknown Service", "WARNING")
-            elif len(unknown_group) == 1:
-                p = unknown_group[0]
-                self.log(f"🟡 Port {p}: Unknown Service", "WARNING")
-            else:
-                p_start = unknown_group[0]
-                p_end = unknown_group[-1]
-                self.log(f"🟡 Ports {p_start}-{p_end}: Multi-Port Silent/Firewall (Unknown)", "WARNING")
+            p_text = f"{unknown_group[0]}" if len(unknown_group) == 1 else f"{unknown_group[0]}-{unknown_group[-1]}"
+            table.add_row(escape(p_text), "UNRES", "Silent/Firewalled")
             unknown_group.clear()
 
         for p, c, b in risultati:
-            # Salvataggio dati nel report strutturato
             self.dashboard.report_data["scans"].append({"port": p, "risk": c, "service": b})
-            
             if b == "Unknown Service":
                 stats["unknown"] += 1
-                unknown_group.append(p)
+                if is_smart: unknown_group.append(p)
+                else: table.add_row(escape(str(p)), "UNKNOWN", "No response")
             else:
                 flush_unknown()
                 stats["identified"] += 1
+                status_label = "HIGH-R" if c == "ROSSO" else ("SAFE" if c == "VERDE" else "IDENT")
                 if c == "ROSSO": stats["high_risk"] += 1
-                
-                # Selezione Icona / Tag Semplificato per Visibilità
-                icon = ICON_MAP.get(p, "[*]")
-                tag = "DANGER" if c == "ROSSO" else ("SUCCESS" if c == "VERDE" else "INFO")
-                # Pallino colorato + Tag testuale per massimizzare la leggibilità
-                bullet = "\u25CF"
-                self.log(f"{bullet} {icon} Port {p}: {b}", tag)
+                table.add_row(escape(str(p)), status_label, escape(b[:30]))
         
         flush_unknown()
+        
+        # Stampa Tabella con analisi riga per riga per colori
+        table_output = self._rich_render(table)
+        for line in table_output.splitlines():
+            level = "INFO"
+            if "HIGH-R" in line: level = "DANGER"
+            elif "SAFE" in line: level = "SUCCESS"
+            elif "UNRES" in line or "UNKNOWN" in line: level = "WARNING"
+            self.log(line, level)
 
-        # --- EXECUTIVE SUMMARY ---
-        self.log("\n" + "="*45, "MUTED")
-        self.log("📊 EXECUTIVE SUMMARY & ANALYTICS", "INFO")
-        self.log(f"  • Total Scope Checked: {stats['total']} ports", "INFO")
-        self.log(f"  • Open & Identified: {stats['identified']}", "SUCCESS" if stats['identified'] > 0 else "INFO")
-        self.log(f"  • Open & Silent (Firewalled): {stats['unknown']}", "WARNING")
-        
-        # WAF/Firewall Detection Logic
-        if stats['total'] > 10 and (stats['unknown'] / stats['total']) > 0.4:
-            self.log("🛡️ SECURITY POSTURE: Active Firewall/WAF Detected!", "WARNING")
-            self.log("  [!] Target is spoofing open ports (LaBrea/Honeyport detected).", "MUTED")
-        
+        # --- EXECUTIVE SUMMARY RIQUADRATO (ASCII ROBUSTO) ---
+        summary_content = (
+            f"TARGET SCOPE   : {stats['total']} ports\n"
+            f"IDENTIFIED     : {stats['identified']} services\n"
+            f"UNIDENTIFIED   : {stats['unknown']} ports"
+        )
         if stats['high_risk'] > 0:
-            self.log(f"⚠️ CALIBRATED RISK: {stats['high_risk']} Critical points found!", "DANGER")
+            summary_content += f"\n\n[!] SECURITY ALERT: {stats['high_risk']} Critical Points!"
+            
+        panel_sum = self._rich_render(Panel(summary_content, title="EXECUTIVE ANALYTICS", box=box.ASCII), box_style=box.ASCII)
+        for line in panel_sum.splitlines():
+            tag = "DANGER" if "ALERT" in line else "INFO"
+            self.log(line, tag)
+        
+        # WAF DETECTION
+        if stats['total'] > 10 and (stats['unknown'] / stats['total']) > 0.4:
+            waf_msg = "SHIELD ACTIVE: Firewall/WAF Detected!\nTarget is masking services."
+            panel_waf = self._rich_render(Panel(waf_msg, title="SHIELD", box=box.ASCII), box_style=box.ASCII)
+            for line in panel_waf.splitlines():
+                self.log(line, "WARNING")
         
         self.dashboard.home_tab.increment_scans()
         self.log_completion("Port Scan")
@@ -264,13 +283,19 @@ class NetworkTab(ctk.CTkFrame):
     def mostra_dir(self, res):
         self.btn_dir.configure(state="normal")
         if res is None:
-            self.log("Connection Error: SSL violation or timeout.", "DANGER")
+            self.log("ERROR: Connection failed during enumeration.", "DANGER")
         elif not res:
-            self.log("No hidden resources identified.", "WARNING")
+            self.log("INFO: No public resources identified via wordlist.", "WARNING")
         else:
-            self.log(f"Identified {len(res)} resources:", "SUCCESS")
+            table = Table(title="[ ENUMERATION - DISCOVERED RESOURCES ]", box=box.ASCII, width=60)
+            table.add_column("TYPE", width=10)
+            table.add_column("RESOURCE PATH", width=44)
+            for r in res:
+                table.add_row("FILE/DIR", escape(r))
+            
+            panel_dir = self._rich_render(table)
+            self.log("\n" + panel_dir, "SUCCESS")
             self.dashboard.report_data["directories"] = res
-            for r in res: self.log(f"  📂 {r}", "SUCCESS")
         
         self.log_completion("Directory Busting")
 
@@ -285,29 +310,56 @@ class NetworkTab(ctk.CTkFrame):
         score, report = analizza_headers(target)
         if stop_event and stop_event.is_set(): return
         
-        self.dashboard.after(0, lambda: self.log(f"Security Hardening Score: {score}/6", "SUCCESS" if score >= 4 else "DANGER"))
-        for l in report:
-            if stop_event and stop_event.is_set(): return
-            tag = "SUCCESS" if "✅" in l else ("WARNING" if "⚠️" in l else "DANGER")
-            self.dashboard.after(0, lambda x=l, t=tag: self.log(x, t))
+        # --- TABELLA HEADERS RECON ---
+        table_h = Table(title=f"[ WEB AUDIT - SCORE: {score}/6 ]", box=box.ASCII, width=60)
+        table_h.add_column("STATUS", width=10)
+        table_h.add_column("AUDIT FINDING", width=44)
         
+        for l in report:
+            tag = "PASS" if "✅" in l else ("WARN" if "⚠️" in l else "MISSING")
+            clean_msg = l.replace("✅ ", "").replace("⚠️ ", "").replace("❌ ", "")
+            table_h.add_row(tag, escape(clean_msg))
+        
+        # Stampa Tabella Recap con Analisi Colori Riga per Riga
+        audit_output = self._rich_render(table_h)
+        for line in audit_output.splitlines():
+            level = "INFO"
+            if "PASS" in line: level = "SUCCESS"
+            elif "WARN" in line: level = "WARNING"
+            elif "MISSING" in line: level = "DANGER"
+            self.dashboard.after(0, lambda x=line, t=level: self.log(x, t))
+        
+        # --- OSINT / ROBOTS ---
         robots = analizza_robots(target)
         if stop_event and stop_event.is_set(): return
         
         if robots:
-            self.dashboard.after(0, lambda: self.log("Robots.txt findings:", "WARNING"))
-            for path in robots:
-                if stop_event and stop_event.is_set(): return
-                self.dashboard.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
-        else:
-            self.dashboard.after(0, lambda: self.log("Robots.txt is empty or missing.", "INFO"))
+            rob_text = "\n".join([f"-> {p}" for p in robots])
+            panel_rob = self._rich_render(Panel(rob_text, title="OSINT: Robots.txt Analysis", box=box.ASCII))
+            self.dashboard.after(0, lambda: self.log("\n" + panel_rob, "WARNING"))
+        
+        # --- HTTP METHODS ---
+        self.dashboard.after(0, lambda: self.log("Validating HTTP methods...", "INFO"))
+        verbi = analizza_verbi_http(target)
+        if verbi:
+            table_v = Table(title="[ HTTP VERBS AUDIT ]", box=box.ASCII, width=60)
+            table_v.add_column("STATUS", width=8)
+            table_v.add_column("POLICY RESULT", width=46)
             
-        self.dashboard.after(0, lambda: self.log("--- HTTP METHODS ANALYSIS ---", "INFO"))
-        verbi_report = analizza_verbi_http(target)
-        for r in verbi_report:
-            if stop_event and stop_event.is_set(): return
-            tag = "SUCCESS" if "✅" in r else ("DANGER" if "❌" in r else ("INFO" if "ℹ️" in r else "WARNING"))
-            self.dashboard.after(0, lambda x=r, t=tag: self.log(x, t))
+            for v in verbi:
+                # Normalizzazione tag
+                v_tag = "OK" if "✅" in v else ("RISK" if "❌" in v else "INFO")
+                v_msg = v.replace("✅ ", "").replace("❌ ", "").replace("ℹ️ ", "")
+                table_v.add_row(v_tag, escape(v_msg))
+            
+            # Stampa con analisi colori riga per riga
+            v_output = self._rich_render(table_v)
+            for line in v_output.splitlines():
+                level = "INFO"
+                if "OK" in line: level = "SUCCESS"
+                elif "RISK" in line: level = "DANGER"
+                elif "INFO" in line: level = "WARNING"
+                self.dashboard.after(0, lambda x=line, t=level: self.log(x, t))
             
         self.dashboard.after(0, lambda: self.log_completion("Web/OSINT Recon"))
         self.dashboard.after(0, lambda: self.btn_recon.configure(state="normal"))
@@ -328,20 +380,31 @@ class NetworkTab(ctk.CTkFrame):
     def mostra_risultati_ssl(self, data):
         self.btn_ssl.configure(state="normal")
         if data["status"] == "error":
-            self.log(f"SSL Handshake Failed: {data['message']}", "DANGER")
+            self.log(f"SSL ERROR: {data['message']}", "DANGER")
             return
 
-        self.log("--- SSL/TLS INSPECTION REPORT ---", "INFO")
-        self.log(f"Hostname: {data['hostname']}", "SUCCESS")
-        self.log(f"Issued By: {data['issuer']}", "INFO")
-        self.log(f"Expires On: {data['expiry']} ({data['days_left']} days left)", "WARNING" if data['days_left'] < 30 else "SUCCESS")
-        self.log(f"Protocol: {data['protocol']} | Cipher: {data['cipher']}", "MUTED")
+        # --- PANEL CERTIFICATE INFO ---
+        cert_info = (
+            f"HOSTNAME   : {data['hostname']}\n"
+            f"ISSUER     : {data['issuer']}\n"
+            f"EXPIRY     : {data['expiry']} ({data['days_left']} days left)\n"
+            f"CIPHER     : {data['protocol']} | {data['cipher']}"
+        )
+        panel_cert = self._rich_render(Panel(cert_info, title="[ TLS/SSL CERTIFICATE ]", box=box.ASCII))
+        for line in panel_cert.splitlines():
+            level = "SUCCESS"
+            if data['days_left'] < 10: level = "DANGER"
+            elif data['days_left'] < 30: level = "WARNING"
+            self.log(line, level)
         
         if data['sans']:
-            self.log(f"SANs (Alt Names) Found: {len(data['sans'])}", "INFO")
+            table_sans = Table(title="[ SUBJECT ALTERNATIVE NAMES (SANs) ]", box=box.ASCII, width=60)
+            table_sans.add_column("DOMAIN", width=54)
             for sub in data['sans']:
-                self.log(f"  🔗 {sub}", "SUCCESS")
-        else:
-            self.log("No Subject Alternative Names found.", "MUTED")
+                table_sans.add_row(escape(sub))
+            
+            sans_output = self._rich_render(table_sans)
+            for line in sans_output.splitlines():
+                self.log(line, "INFO")
             
         self.log_completion("SSL Inspection")
