@@ -8,6 +8,7 @@ import os
 from gui.tabs.home_tab import HomeTab
 from gui.tabs.network_tab import NetworkTab
 from gui.tabs.crypto_tab import CryptoTab
+from logic.utils.task_manager import TaskManager
 
 import queue
 import time
@@ -30,7 +31,9 @@ class Dashboard(ctk.CTk):
         self.title("Security Toolkit Pro v5.1 - Cyber Ops Edition")
         self.geometry("1100x900")
         
-        # --- BUSINESS LOGIC ---
+        # --- BUSINESS LOGIC & TASK MANAGEMENT ---
+        self.task_manager = TaskManager(max_workers=100)
+        
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 

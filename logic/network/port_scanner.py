@@ -1,4 +1,5 @@
 import socket
+import concurrent.futures
 
 RISCHIO_PORTE = {
     21: "ROSSO", 23: "ROSSO", 80: "VERDE", 443: "VERDE",
@@ -57,73 +58,76 @@ def ottieni_ip(target):
     except socket.gaierror:
         return None
 
-def scansione_porte(target, range_porte, callback_progress=None):
-    """
-    callback_progress: una funzione che riceve (numero_porta_corrente, totale_porte)
-    """
-    # --- FIX CRITICO: NORMALIZZAZIONE HOSTNAME ---
-    clean_host = target.strip().replace("https://", "").replace("http://", "").split("/")[0]
+def _scan_single_port(ip, porta, clean_host):
+    """Esegue la scansione di una singola porta e restituisce il risultato."""
+    try:
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.settimeout(0.6)
+            res = s.connect_ex((ip, porta))
+            if res == 0:
+                raw_banner_text = ""
+                try:
+                    req = f"HEAD / HTTP/1.1\r\nHost: {clean_host}\r\nUser-Agent: SecurityScanner/1.0\r\nConnection: close\r\n\r\n"
+                    s.send(req.encode())
+                    raw_data = s.recv(2048)
+                    decoded = raw_data.decode('utf-8', errors='ignore')
+                    lines = decoded.split('\r\n')
+                    first_line = lines[0].strip()
+                    server_header = next((line for line in lines if line.lower().startswith("server:")), None)
+                    if server_header:
+                        raw_banner_text = server_header.split(":", 1)[1].strip()
+                    elif first_line:
+                        raw_banner_text = first_line
+                    else:
+                        raw_banner_text = decoded.strip()[:50]
+                except (socket.timeout, socket.error, ConnectionError):
+                    pass
+                
+                raw_banner_text = ''.join(c for c in raw_banner_text if c.isprintable())[:80]
+                descrizione_servizio = analyze_service(raw_banner_text, porta)
+                colore = RISCHIO_PORTE.get(porta, "GIALLO")
+                return (porta, colore, descrizione_servizio)
+    except (socket.timeout, socket.error, ConnectionError, OSError):
+        pass
+    return None
 
-    risultati = []
-    ip = ottieni_ip(target) 
-    
+def scansione_porte(target, range_porte, callback_progress=None, stop_event=None):
+    """
+    Esegue la scansione delle porte in parallelo.
+    stop_event: threading.Event per interrompere la scansione.
+    """
+    clean_host = target.strip().replace("https://", "").replace("http://", "").split("/")[0]
+    ip = ottieni_ip(target)
     if not ip: return [("Errore", "Host non trovato", "")]
 
-    # Definizione lista porte
     if isinstance(range_porte, list):
         lista_porte = range_porte
     else:
         start, end = range_porte
-        lista_porte = range(start, end + 1)
+        lista_porte = list(range(start, end + 1))
 
     totale = len(lista_porte)
-
-    for index, porta in enumerate(lista_porte):
-        if callback_progress:
-            callback_progress(index + 1, totale, porta)
-
-        try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.6) # Timeout leggermente aumentato per stabilità
-                res = s.connect_ex((ip, porta))
-                if res == 0:
-                    # Porta Aperta -> Banner Grabbing
-                    raw_banner_text = ""
-                    try:
-                        # Costruiamo una richiesta HTTP/1.1 standard
-                        req = f"HEAD / HTTP/1.1\r\nHost: {clean_host}\r\nUser-Agent: SecurityScanner/1.0\r\nConnection: close\r\n\r\n"
-                        
-                        s.send(req.encode()) 
-                        
-                        raw_data = s.recv(2048)
-                        decoded = raw_data.decode('utf-8', errors='ignore')
-                        
-                        # Parsing della risposta
-                        lines = decoded.split('\r\n')
-                        first_line = lines[0].strip()
-                        server_header = next((line for line in lines if line.lower().startswith("server:")), None)
-                        
-                        if server_header:
-                            # Estraiamo solo il valore del server header (es. Server: nginx -> nginx)
-                            srv_val = server_header.split(":", 1)[1].strip()
-                            raw_banner_text = srv_val
-                        elif first_line:
-                            raw_banner_text = first_line
-                        else:
-                            raw_banner_text = decoded.strip()[:50]
-                            
-                    except (socket.timeout, socket.error, ConnectionError):
-                        pass
-                    
-                    # Cleanup caratteri
-                    raw_banner_text = ''.join(c for c in raw_banner_text if c.isprintable())[:80]
-                    
-                    # --- INTELLIGENCE STEP: ANALISI DEL SERVIZIO ---
-                    descrizione_servizio = analyze_service(raw_banner_text, porta)
-
-                    colore = RISCHIO_PORTE.get(porta, "GIALLO")
-                    risultati.append((porta, colore, descrizione_servizio))
-        except (socket.timeout, socket.error, ConnectionError, OSError):
-            pass
+    risultati = []
     
+    # Utilizziamo un pool di thread per velocizzare drasticamente la scansione
+    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+        futures = {executor.submit(_scan_single_port, ip, p, clean_host): p for p in lista_porte}
+        
+        for index, future in enumerate(concurrent.futures.as_completed(futures)):
+            # Controllo interruzione
+            if stop_event and stop_event.is_set():
+                # Tentiamo di cancellare i future rimanenti
+                for f in futures: f.cancel()
+                break
+                
+            porta = futures[future]
+            if callback_progress:
+                callback_progress(index + 1, totale, porta)
+            
+            res = future.result()
+            if res:
+                risultati.append(res)
+                
+    # Ordiniamo i risultati per porta (dato che as_completed non garantisce l'ordine)
+    risultati.sort(key=lambda x: x[0])
     return risultati

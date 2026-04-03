@@ -38,7 +38,7 @@ class NetworkTab(ctk.CTkFrame):
         self.scan_mode.set("Quick Scan")
         self.scan_mode.pack(side="left")
 
-        self.btn_scan = ctk.CTkButton(ctrl_frame, text="SCAN PORTS", height=40, fg_color="#3B8ED0", command=self.avvia_scan)
+        self.btn_scan = ctk.CTkButton(ctrl_frame, text="SCAN PORTS", height=40, fg_color="#3B8ED0", command=self.toggle_scan)
         self.btn_scan.pack(side="right", padx=5)
         self.btn_dir = ctk.CTkButton(ctrl_frame, text="DIR BUST", height=40, fg_color="#4B5563", command=self.avvia_dir)
         self.btn_dir.pack(side="right", padx=5)
@@ -104,31 +104,49 @@ class NetworkTab(ctk.CTkFrame):
         self.dashboard.report_data["target"] = current_domain
         self.dashboard.report_data["timestamp"] = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
+    def toggle_scan(self):
+        if self.dashboard.task_manager.is_running("port_scan"):
+            self.dashboard.task_manager.stop_task("port_scan")
+            self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0")
+            self.log("Scan interrupted by user.", "WARNING")
+        else:
+            self.avvia_scan()
+
     def avvia_scan(self):
         target = self.entry_ip.get().strip()
         if not target: return
         self.check_and_clear_logs()
-        self.btn_scan.configure(state="disabled")
+        
+        # Cambiamo stato del pulsante in STOP
+        self.btn_scan.configure(text="STOP SCAN", fg_color=COLOR_DANGER)
         self.progress_bar.set(0)
         self.log(f"Starting DNS resolution for {target}...", "INFO")
-        threading.Thread(target=self._pre_scan_resolve, args=(target,)).start()
+        
+        # Usiamo il TaskManager per gestire tutto il processo
+        self.dashboard.task_manager.start_task("port_scan", self._task_full_scan_flow, target)
 
-    def _pre_scan_resolve(self, target):
+    def _task_full_scan_flow(self, target, stop_event=None):
+        """Workflow completo di scansione gestito come singolo task."""
         ip = ottieni_ip(target)
         if not ip:
             self.dashboard.after(0, lambda: self.log("DNS Resolution Failed.", "DANGER"))
-            self.dashboard.after(0, lambda: self.btn_scan.configure(state="normal"))
+            self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0"))
             return
-        self.dashboard.after(0, lambda: self.log(f"Target Resolved: {ip}", "SUCCESS"))
-        self.dashboard.after(0, lambda: self.start_scan_thread(target, ip))
 
-    def start_scan_thread(self, target, ip):
+        if stop_event and stop_event.is_set(): return
+        
+        self.dashboard.after(0, lambda: self.log(f"Target Resolved: {ip}", "SUCCESS"))
+        
         mode = self.scan_mode.get()
         porte = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 8080, 8443] if mode == "Quick Scan" else (1, 1000)
-        threading.Thread(target=self.thread_scan, args=(target, porte)).start()
+        
+        # Chiamata alla logica di scansione parallela
+        risultati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso, stop_event=stop_event)
+        
+        if stop_event and stop_event.is_set():
+            self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0"))
+            return
 
-    def thread_scan(self, target, porte):
-        risultati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso)
         self.dashboard.after(0, self.mostra_risultati_scan, risultati)
 
     def aggiorna_progresso(self, corrente, totale, porta_attuale):
@@ -137,7 +155,7 @@ class NetworkTab(ctk.CTkFrame):
         self.dashboard.after(0, lambda: self.lbl_status.configure(text=f"Probing port {porta_attuale}..."))
 
     def mostra_risultati_scan(self, risultati):
-        self.btn_scan.configure(state="normal")
+        self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0")
         self.log("---" + "-" * 15 + "SCAN REPORT" + "-" * 15 + "---", "INFO")
         self.dashboard.report_data["scans"] = [] 
         for p, c, b in risultati:
@@ -156,10 +174,16 @@ class NetworkTab(ctk.CTkFrame):
             self.btn_wordlist.configure(fg_color=COLOR_SUCCESS)
 
     def avvia_dir(self):
-        t = self.entry_ip.get().strip()
+        target = self.entry_ip.get().strip()
+        if not target: return
         self.check_and_clear_logs()
         self.btn_dir.configure(state="disabled")
-        threading.Thread(target=lambda: self.dashboard.after(0, self.mostra_dir, cerca_directory_nascoste(t, self.wordlist_path))).start()
+        self.dashboard.task_manager.start_task("dir_bust", self._task_dir_bust, target)
+
+    def _task_dir_bust(self, target, stop_event=None):
+        res = cerca_directory_nascoste(target, self.wordlist_path)
+        if stop_event and stop_event.is_set(): return
+        self.dashboard.after(0, lambda: self.mostra_dir(res))
 
     def mostra_dir(self, res):
         self.btn_dir.configure(state="normal")
@@ -175,32 +199,37 @@ class NetworkTab(ctk.CTkFrame):
         self.log_completion("Directory Busting")
 
     def avvia_recon(self):
-        t = self.entry_ip.get().strip()
+        target = self.entry_ip.get().strip()
+        if not target: return
         self.check_and_clear_logs()
         self.btn_recon.configure(state="disabled")
-        threading.Thread(target=self.thread_recon, args=(t,)).start()
+        self.dashboard.task_manager.start_task("recon", self._task_recon, target)
 
-    def thread_recon(self, target):
+    def _task_recon(self, target, stop_event=None):
         score, report = analizza_headers(target)
-        self.dashboard.report_data["recon"]["score"] = score
-        self.dashboard.report_data["recon"]["headers"] = report
+        if stop_event and stop_event.is_set(): return
         
         self.dashboard.after(0, lambda: self.log(f"Security Hardening Score: {score}/6", "SUCCESS" if score >= 4 else "DANGER"))
         for l in report:
+            if stop_event and stop_event.is_set(): return
             tag = "SUCCESS" if "✅" in l else ("WARNING" if "⚠️" in l else "DANGER")
             self.dashboard.after(0, lambda x=l, t=tag: self.log(x, t))
         
         robots = analizza_robots(target)
-        self.dashboard.report_data["recon"]["robots"] = robots if robots else []
+        if stop_event and stop_event.is_set(): return
+        
         if robots:
             self.dashboard.after(0, lambda: self.log("Robots.txt findings:", "WARNING"))
-            for path in robots: self.dashboard.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
+            for path in robots:
+                if stop_event and stop_event.is_set(): return
+                self.dashboard.after(0, lambda p=path: self.log(f"  🤖 Disallow: {p}", "SUCCESS"))
         else:
             self.dashboard.after(0, lambda: self.log("Robots.txt is empty or missing.", "INFO"))
             
         self.dashboard.after(0, lambda: self.log("--- HTTP METHODS ANALYSIS ---", "INFO"))
         verbi_report = analizza_verbi_http(target)
         for r in verbi_report:
+            if stop_event and stop_event.is_set(): return
             tag = "SUCCESS" if "✅" in r else ("DANGER" if "❌" in r else ("INFO" if "ℹ️" in r else "WARNING"))
             self.dashboard.after(0, lambda x=r, t=tag: self.log(x, t))
             
@@ -208,14 +237,16 @@ class NetworkTab(ctk.CTkFrame):
         self.dashboard.after(0, lambda: self.btn_recon.configure(state="normal"))
 
     def avvia_ssl(self):
-        t = self.entry_ip.get().strip()
+        target = self.entry_ip.get().strip()
+        if not target: return
         self.check_and_clear_logs()
         self.btn_ssl.configure(state="disabled")
-        threading.Thread(target=self.thread_ssl, args=(t,)).start()
+        self.dashboard.task_manager.start_task("ssl_inspect", self._task_ssl_inspect, target)
 
-    def thread_ssl(self, target):
+    def _task_ssl_inspect(self, target, stop_event=None):
         self.dashboard.after(0, lambda: self.log(f"Starting SSL/TLS Handshake with {target}...", "INFO"))
         data = get_ssl_details(target)
+        if stop_event and stop_event.is_set(): return
         self.dashboard.after(0, lambda: self.mostra_risultati_ssl(data))
 
     def mostra_risultati_ssl(self, data):
