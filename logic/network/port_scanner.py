@@ -58,11 +58,11 @@ def ottieni_ip(target):
     except socket.gaierror:
         return None
 
-def _scan_single_port(ip, porta, clean_host):
+def _scan_single_port(ip, porta, clean_host, timeout=0.6):
     """Esegue la scansione di una singola porta e restituisce il risultato."""
     try:
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.settimeout(0.6)
+            s.settimeout(timeout)
             res = s.connect_ex((ip, porta))
             if res == 0:
                 raw_banner_text = ""
@@ -91,7 +91,7 @@ def _scan_single_port(ip, porta, clean_host):
         pass
     return None
 
-def scansione_porte(target, range_porte, callback_progress=None, stop_event=None):
+def scansione_porte(target, range_porte, callback_progress=None, stop_event=None, max_workers=50, timeout=0.6):
     """
     Esegue la scansione delle porte in parallelo.
     stop_event: threading.Event per interrompere la scansione.
@@ -110,8 +110,8 @@ def scansione_porte(target, range_porte, callback_progress=None, stop_event=None
     risultati = []
     
     # Utilizziamo un pool di thread per velocizzare drasticamente la scansione
-    with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
-        futures = {executor.submit(_scan_single_port, ip, p, clean_host): p for p in lista_porte}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_scan_single_port, ip, p, clean_host, timeout=timeout): p for p in lista_porte}
         
         for index, future in enumerate(concurrent.futures.as_completed(futures)):
             # Controllo interruzione

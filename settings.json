@@ -1,0 +1,16 @@
+{
+    "network": {
+        "max_workers": 50,
+        "timeout": 0.6,
+        "smart_log": true,
+        "default_target": "epicode.com"
+    },
+    "crypto": {
+        "default_charset": "Alpha Lower (a-z)",
+        "default_max_len": 4
+    },
+    "ui": {
+        "theme": "dark-blue",
+        "font_family": "Roboto"
+    }
+}

@@ -29,7 +29,9 @@ class NetworkTab(ctk.CTkFrame):
         ctk.CTkLabel(card_target, text="Target Host:", font=("Roboto", 14, "bold")).grid(row=0, column=0, padx=20, pady=25)
         self.entry_ip = ctk.CTkEntry(card_target, placeholder_text="e.g. epicode.com", height=45, font=("Menlo", 13))
         self.entry_ip.grid(row=0, column=1, sticky="ew", padx=(0, 20), pady=25)
-        self.entry_ip.insert(0, "epicode.com")
+        
+        default_target = self.dashboard.settings.get("network", "default_target")
+        self.entry_ip.insert(0, default_target)
 
         ctrl_frame = ctk.CTkFrame(self, fg_color="transparent")
         ctrl_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))
@@ -140,8 +142,13 @@ class NetworkTab(ctk.CTkFrame):
         mode = self.scan_mode.get()
         porte = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 8080, 8443] if mode == "Quick Scan" else (1, 1000)
         
-        # Chiamata alla logica di scansione parallela
-        risultati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso, stop_event=stop_event)
+        # Carichiamo i parametri tecnici dai settings
+        m_workers = self.dashboard.settings.get("network", "max_workers")
+        s_timeout = self.dashboard.settings.get("network", "timeout")
+        
+        # Chiamata alla logica di scansione parallela con i settings caricati
+        risultati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso, 
+                                     stop_event=stop_event, max_workers=m_workers, timeout=s_timeout)
         
         if stop_event and stop_event.is_set():
             self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0"))
@@ -158,11 +165,45 @@ class NetworkTab(ctk.CTkFrame):
         self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0")
         self.log("---" + "-" * 15 + "SCAN REPORT" + "-" * 15 + "---", "INFO")
         self.dashboard.report_data["scans"] = [] 
+        
+        # --- LOGICA SMART GROUPING ---
+        is_smart = self.dashboard.settings.get("network", "smart_log")
+        unknown_group = [] 
+        
+        def flush_unknown():
+            """Stampa il blocco di porte Unknown accumulato."""
+            if not unknown_group: return
+            if not is_smart: # Se smart log è disattivato, stampa tutto singolarmente
+                for p in unknown_group:
+                    self.log(f"🟡 Port {p}: Unknown Service", "WARNING")
+            elif len(unknown_group) == 1:
+                p = unknown_group[0]
+                self.log(f"🟡 Port {p}: Unknown Service", "WARNING")
+            else:
+                p_start = unknown_group[0]
+                p_end = unknown_group[-1]
+                self.log(f"🟡 Ports {p_start}-{p_end}: Multi-Port Silent/Firewall (Unknown)", "WARNING")
+            unknown_group.clear()
+
         for p, c, b in risultati:
-            tag = "DANGER" if c == "ROSSO" else ("WARNING" if c == "GIALLO" else "SUCCESS")
-            icon = "🔴" if c == "ROSSO" else ("🟡" if c == "GIALLO" else "🟢")
-            self.log(f"{icon} Port {p}: {b}", tag)
+            # Salvataggio dati nel report strutturato (sempre individuale)
             self.dashboard.report_data["scans"].append({"port": p, "risk": c, "service": b})
+            
+            # Decidiamo se raggruppare o stampare
+            if b == "Unknown Service":
+                unknown_group.append(p)
+            else:
+                # Se c'erano Unknown prima, li svuotiamo ora
+                flush_unknown()
+                
+                # Stampiamo la porta parlante con la sua icona e colore
+                tag = "DANGER" if c == "ROSSO" else ("SUCCESS" if c == "VERDE" else "INFO")
+                icon = "🔴" if c == "ROSSO" else ("🟢" if c == "VERDE" else "🔵")
+                self.log(f"{icon} Port {p}: {b}", tag)
+        
+        # Svuotiamo l'ultimo blocco se esiste
+        flush_unknown()
+        
         self.dashboard.home_tab.increment_scans()
         self.log_completion("Port Scan")
 
