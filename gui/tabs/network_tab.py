@@ -283,18 +283,24 @@ class NetworkTab(ctk.CTkFrame):
     def mostra_dir(self, res):
         self.btn_dir.configure(state="normal")
         if res is None:
-            self.log("ERROR: Connection failed during enumeration.", "DANGER")
+            self.log("ERROR: Enumeration attempt failed.", "DANGER")
         elif not res:
-            self.log("INFO: No public resources identified via wordlist.", "WARNING")
+            self.log("INFO: No identified resources via wordlist.", "WARNING")
         else:
-            table = Table(title="[ ENUMERATION - DISCOVERED RESOURCES ]", box=box.ASCII, width=60)
-            table.add_column("TYPE", width=10)
-            table.add_column("RESOURCE PATH", width=44)
-            for r in res:
-                table.add_row("FILE/DIR", escape(r))
+            table_d = Table(title="[ ENUMERATION - DISCOVERED RESOURCES ]", box=box.ASCII, width=60)
+            table_d.add_column("TYPE", width=12)
+            table_d.add_column("RESOURCE FOUND", width=42)
             
-            panel_dir = self._rich_render(table)
-            self.log("\n" + panel_dir, "SUCCESS")
+            for r in res:
+                table_d.add_row("FILE/DIR", escape(r))
+            
+            # Stampa con analisi colori riga per riga
+            d_output = self._rich_render(table_d)
+            for line in d_output.splitlines():
+                # Coloriamo in verde brillante tutto ciò che è stato trovato
+                level = "SUCCESS" if "FILE/DIR" in line else "INFO"
+                self.log(line, level)
+                
             self.dashboard.report_data["directories"] = res
         
         self.log_completion("Directory Busting")
