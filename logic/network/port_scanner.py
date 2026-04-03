@@ -1,5 +1,6 @@
 import socket
 import concurrent.futures
+import time
 
 RISCHIO_PORTE = {
     21: "ROSSO", 23: "ROSSO", 80: "VERDE", 443: "VERDE",
@@ -58,18 +59,29 @@ def ottieni_ip(target):
     except socket.gaierror:
         return None
 
-def _scan_single_port(ip, porta, clean_host, timeout=0.6):
+def _scan_single_port(ip, porta, clean_host, stop_event=None, timeout=0.6):
     """Esegue la scansione di una singola porta e restituisce il risultato."""
     try:
+        if stop_event and stop_event.is_set():
+            return None
+            
+        # Piccolo ritardo per non saturare la banda/WAF (Anti-DDoS Protection)
+        time.sleep(0.005) 
+        
+        if stop_event and stop_event.is_set():
+            return None
+        
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(timeout)
             res = s.connect_ex((ip, porta))
             if res == 0:
                 raw_banner_text = ""
                 try:
+                    # Timeout dedicato per il banner (più breve per non bloccare)
+                    s.settimeout(1.0) 
                     req = f"HEAD / HTTP/1.1\r\nHost: {clean_host}\r\nUser-Agent: SecurityScanner/1.0\r\nConnection: close\r\n\r\n"
                     s.send(req.encode())
-                    raw_data = s.recv(2048)
+                    raw_data = s.recv(1024)
                     decoded = raw_data.decode('utf-8', errors='ignore')
                     lines = decoded.split('\r\n')
                     first_line = lines[0].strip()
@@ -108,26 +120,28 @@ def scansione_porte(target, range_porte, callback_progress=None, stop_event=None
 
     totale = len(lista_porte)
     risultati = []
-    
+    totale_scansionati = 0
     # Utilizziamo un pool di thread per velocizzare drasticamente la scansione
     with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_scan_single_port, ip, p, clean_host, timeout=timeout): p for p in lista_porte}
+        futures = {executor.submit(_scan_single_port, ip, p, clean_host, stop_event=stop_event, timeout=timeout): p for p in lista_porte}
         
         for index, future in enumerate(concurrent.futures.as_completed(futures)):
             # Controllo interruzione
             if stop_event and stop_event.is_set():
-                # Tentiamo di cancellare i future rimanenti
                 for f in futures: f.cancel()
                 break
                 
+            totale_scansionati += 1
             porta = futures[future]
             if callback_progress:
                 callback_progress(index + 1, totale, porta)
             
-            res = future.result()
-            if res:
-                risultati.append(res)
+            try:
+                res = future.result()
+                if res:
+                    risultati.append(res)
+            except Exception:
+                pass
                 
-    # Ordiniamo i risultati per porta (dato che as_completed non garantisce l'ordine)
     risultati.sort(key=lambda x: x[0])
-    return risultati
+    return risultati, totale_scansionati

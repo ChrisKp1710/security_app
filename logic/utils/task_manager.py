@@ -44,13 +44,10 @@ class TaskManager:
 
     def is_running(self, task_id):
         """
-        Verifica se un task è attualmente in esecuzione.
+        Verifica se un task è attualmente attivo (in coda o in esecuzione).
         """
         with self._lock:
-            if task_id in self.active_tasks:
-                future, _ = self.active_tasks[task_id]
-                return future.running()
-        return False
+            return task_id in self.active_tasks
 
     def _cleanup_task(self, task_id):
         """

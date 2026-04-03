@@ -108,20 +108,25 @@ class NetworkTab(ctk.CTkFrame):
 
     def toggle_scan(self):
         if self.dashboard.task_manager.is_running("port_scan"):
+            self.btn_scan.configure(text="STOPPING...", state="disabled", fg_color="#4B5563")
             self.dashboard.task_manager.stop_task("port_scan")
-            self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0")
-            self.log("Scan interrupted by user.", "WARNING")
+            self.dashboard.after(200, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0", state="normal"))
+            self.log("Scan interruption requested...", "WARNING")
         else:
             self.avvia_scan()
 
     def avvia_scan(self):
         target = self.entry_ip.get().strip()
-        if not target: return
+        if not target:
+            messagebox.showerror("Error", "Insert a valid target host.")
+            return
+
+        # Pulizia logica per nuovo scan
+        self.btn_scan.configure(text="INITIALIZING...", fg_color="#4B5563", state="disabled")
+        self.lbl_status.configure(text="Starting DNS resolution...")
+        self.progress_bar.set(0)
         self.check_and_clear_logs()
         
-        # Cambiamo stato del pulsante in STOP
-        self.btn_scan.configure(text="STOP SCAN", fg_color=COLOR_DANGER)
-        self.progress_bar.set(0)
         self.log(f"Starting DNS resolution for {target}...", "INFO")
         
         # Usiamo il TaskManager per gestire tutto il processo
@@ -137,7 +142,8 @@ class NetworkTab(ctk.CTkFrame):
 
         if stop_event and stop_event.is_set(): return
         
-        self.dashboard.after(0, lambda: self.log(f"Target Resolved: {ip}", "SUCCESS"))
+        # Ripristiniamo il pulsante in modalità STOP ora che il task è partito
+        self.dashboard.after(0, lambda: self.btn_scan.configure(text="STOP SCAN", fg_color="#EF4444", state="normal"))
         
         mode = self.scan_mode.get()
         porte = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 8080, 8443] if mode == "Quick Scan" else (1, 1000)
@@ -147,33 +153,45 @@ class NetworkTab(ctk.CTkFrame):
         s_timeout = self.dashboard.settings.get("network", "timeout")
         
         # Chiamata alla logica di scansione parallela con i settings caricati
-        risultati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso, 
-                                     stop_event=stop_event, max_workers=m_workers, timeout=s_timeout)
+        try:
+            risultati, num_scansionati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso, 
+                                                           stop_event=stop_event, max_workers=m_workers, timeout=s_timeout)
+        except Exception as e:
+            self.dashboard.after(0, lambda: self.log(f"CRITICAL ERROR in Scanner: {str(e)}", "DANGER"))
+            self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0"))
+            return
         
         if stop_event and stop_event.is_set():
             self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0"))
             return
 
-        self.dashboard.after(0, self.mostra_risultati_scan, risultati)
+        self.dashboard.after(0, lambda: self.mostra_risultati_scan(risultati, num_scansionati))
 
     def aggiorna_progresso(self, corrente, totale, porta_attuale):
         perc = corrente / totale
         self.dashboard.after(0, lambda: self.progress_bar.set(perc))
         self.dashboard.after(0, lambda: self.lbl_status.configure(text=f"Probing port {porta_attuale}..."))
 
-    def mostra_risultati_scan(self, risultati):
+    def mostra_risultati_scan(self, risultati, num_scansionati):
         self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0")
         self.log("---" + "-" * 15 + "SCAN REPORT" + "-" * 15 + "---", "INFO")
         self.dashboard.report_data["scans"] = [] 
         
-        # --- LOGICA SMART GROUPING ---
+        # --- CONFIGURAZIONE ICONE COMPATIBILI (Unicode Standard per Windows) ---
+        ICON_MAP = {
+            21: "[FTP]", 22: "[SSH]", 23: "[TELNET]", 25: "[SMTP]", 53: "[DNS]", 
+            80: "[HTTP]", 110: "[POP3]", 143: "[IMAP]", 443: "[HTTPS]", 445: "[SMB]",
+            3306: "[SQL]", 5432: "[SQL]", 3389: "[RDP]", 8080: "[HTTP-ALT]", 8443: "[HTTPS-ALT]"
+        }
+        
+        stats = {"total": num_scansionati, "identified": 0, "unknown": 0, "high_risk": 0}
         is_smart = self.dashboard.settings.get("network", "smart_log")
         unknown_group = [] 
         
         def flush_unknown():
             """Stampa il blocco di porte Unknown accumulato."""
             if not unknown_group: return
-            if not is_smart: # Se smart log è disattivato, stampa tutto singolarmente
+            if not is_smart:
                 for p in unknown_group:
                     self.log(f"🟡 Port {p}: Unknown Service", "WARNING")
             elif len(unknown_group) == 1:
@@ -186,23 +204,40 @@ class NetworkTab(ctk.CTkFrame):
             unknown_group.clear()
 
         for p, c, b in risultati:
-            # Salvataggio dati nel report strutturato (sempre individuale)
+            # Salvataggio dati nel report strutturato
             self.dashboard.report_data["scans"].append({"port": p, "risk": c, "service": b})
             
-            # Decidiamo se raggruppare o stampare
             if b == "Unknown Service":
+                stats["unknown"] += 1
                 unknown_group.append(p)
             else:
-                # Se c'erano Unknown prima, li svuotiamo ora
                 flush_unknown()
+                stats["identified"] += 1
+                if c == "ROSSO": stats["high_risk"] += 1
                 
-                # Stampiamo la porta parlante con la sua icona e colore
+                # Selezione Icona / Tag Semplificato per Visibilità
+                icon = ICON_MAP.get(p, "[*]")
                 tag = "DANGER" if c == "ROSSO" else ("SUCCESS" if c == "VERDE" else "INFO")
-                icon = "🔴" if c == "ROSSO" else ("🟢" if c == "VERDE" else "🔵")
-                self.log(f"{icon} Port {p}: {b}", tag)
+                # Pallino colorato + Tag testuale per massimizzare la leggibilità
+                bullet = "\u25CF"
+                self.log(f"{bullet} {icon} Port {p}: {b}", tag)
         
-        # Svuotiamo l'ultimo blocco se esiste
         flush_unknown()
+
+        # --- EXECUTIVE SUMMARY ---
+        self.log("\n" + "="*45, "MUTED")
+        self.log("📊 EXECUTIVE SUMMARY & ANALYTICS", "INFO")
+        self.log(f"  • Total Scope Checked: {stats['total']} ports", "INFO")
+        self.log(f"  • Open & Identified: {stats['identified']}", "SUCCESS" if stats['identified'] > 0 else "INFO")
+        self.log(f"  • Open & Silent (Firewalled): {stats['unknown']}", "WARNING")
+        
+        # WAF/Firewall Detection Logic
+        if stats['total'] > 10 and (stats['unknown'] / stats['total']) > 0.4:
+            self.log("🛡️ SECURITY POSTURE: Active Firewall/WAF Detected!", "WARNING")
+            self.log("  [!] Target is spoofing open ports (LaBrea/Honeyport detected).", "MUTED")
+        
+        if stats['high_risk'] > 0:
+            self.log(f"⚠️ CALIBRATED RISK: {stats['high_risk']} Critical points found!", "DANGER")
         
         self.dashboard.home_tab.increment_scans()
         self.log_completion("Port Scan")
