@@ -1,0 +1,6 @@
+# Colori per i tag della console e della UI
+COLOR_SUCCESS = "#4ADE80"
+COLOR_WARNING = "#FACC15"
+COLOR_DANGER = "#F87171"
+COLOR_INFO = "#38BDF8"
+COLOR_MUTED = "#94A3B8"
