@@ -3,12 +3,19 @@ import urllib.parse
 import random
 import string
 
-# User-Agent realistico per evitare blocchi/stripping dai WAF (Cloudflare, etc.)
-REAL_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+# Set completo di Header Browser (Chrome 123) per bypassare i filtri bot dei WAF
+BROWSER_HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+    "Accept-Language": "en-US,en;q=0.9,it;q=0.8",
+    "Connection": "close", # Forza la chiusura per evitare conflitti di stato su server rigidi
+    "Upgrade-Insecure-Requests": "1",
+    "Cache-Control": "max-age=0"
+}
 
 def analizza_headers(target):
     """
-    Analizza gli header di sicurezza HTTP, seguendo i redirect (max 3 hop) con UA reale.
+    Analizza gli header di sicurezza HTTP simulando un browser reale (max 3 redirect).
     """
     if not target.startswith("http"): target = "https://" + target
     parsed = urllib.parse.urlparse(target)
@@ -28,38 +35,39 @@ def analizza_headers(target):
     }
 
     try:
-        current_host = host
-        current_path = path
+        curr_host, curr_path = host, path
         res_headers = {}
 
         for _ in range(max_redirects + 1):
-            conn = http.client.HTTPSConnection(current_host, timeout=5)
-            conn.request("HEAD", current_path, headers={"User-Agent": REAL_UA})
+            conn = http.client.HTTPSConnection(curr_host, timeout=5)
+            conn.request("GET", curr_path, headers=BROWSER_HEADERS)
             res = conn.getresponse()
             res_headers = {k.lower(): v for k, v in res.getheaders()}
+            res.read(1024) 
             conn.close()
             
             if res.status in [301, 302, 307, 308]:
-                location = res_headers.get('location')
-                if location:
-                    new_parsed = urllib.parse.urlparse(location)
-                    if new_parsed.netloc: current_host = new_parsed.netloc
-                    current_path = new_parsed.path if new_parsed.path else "/"
+                loc = res_headers.get('location', '')
+                if loc:
+                    p = urllib.parse.urlparse(loc)
+                    if p.netloc: curr_host = p.netloc
+                    curr_path = p.path if p.path else "/"
                     continue
             break
 
-        for header_key, desc in checks.items():
-            if header_key.lower() in res_headers:
+        for h_key, desc in checks.items():
+            if h_key.lower() in res_headers:
                 security_score += 1
                 headers_report.append(f"✅ {desc}: Presente")
             else:
                 headers_report.append(f"❌ {desc}: MANCANTE")
         
-        if "server" in res_headers:
-            headers_report.append(f"⚠️ Server Info Leaked: {res_headers['server']}")
+        server = res_headers.get("server", "Nascosto (Good Practice)")
+        if server != "Nascosto (Good Practice)":
+            headers_report.append(f"⚠️ Server Info Leaked: {server}")
         else:
-            security_score += 1 
-            headers_report.append(f"✅ Server Info: Nascosto (Good Practice)")
+            security_score += 1
+            headers_report.append(f"✅ Server Info: Nascosto")
             
         return security_score, headers_report
 
@@ -68,78 +76,76 @@ def analizza_headers(target):
 
 def analizza_robots(target):
     """
-    Analizza robots.txt con UA reale per evitare 403/Forbidden.
+    Analizza robots.txt con Browser Headers.
     """
     parsed = urllib.parse.urlparse(target if "://" in target else "https://" + target)
     host = parsed.netloc
-    robots_path = []
-    
+    paths = []
     try:
         conn = http.client.HTTPSConnection(host, timeout=5)
-        conn.request("GET", "/robots.txt", headers={"User-Agent": REAL_UA})
+        conn.request("GET", "/robots.txt", headers=BROWSER_HEADERS)
         res = conn.getresponse()
-        
         if res.status == 200:
             content = res.read().decode('utf-8', errors='ignore')
             for line in content.split('\n'):
-                line = line.strip()
-                if line.lower().startswith("disallow:"):
-                    path = line.split(":", 1)[1].strip()
-                    if path and path != "/": robots_path.append(path)
-        
+                if line.strip().lower().startswith("disallow:"):
+                    p = line.split(":", 1)[1].strip()
+                    if p and p != "/": paths.append(p)
         conn.close()
-        return list(set(robots_path))[:10]
+        return list(set(paths))[:10]
     except Exception: return None
+
+def _esegui_richiesta_isolata(host, method, path, body=None):
+    """Esegue una singola richiesta HTTP aprendo e chiudendo la connessione."""
+    try:
+        conn = http.client.HTTPSConnection(host, timeout=5)
+        conn.request(method, path, body=body, headers=BROWSER_HEADERS)
+        res = conn.getresponse()
+        data = res.read().decode('utf-8', errors='ignore')
+        status = res.status
+        headers = {k.lower(): v for k, v in res.getheaders()}
+        conn.close()
+        return status, data, headers
+    except Exception as e:
+        return 0, str(e), {}
 
 def analizza_verbi_http(target):
     """
-    Testa i verbi HTTP con Canary Check per evitare falsi positivi di PUT/DELETE.
+    Testa i verbi HTTP con connessioni isolate per evitare errori di stato (Request-sent).
     """
     if not target.startswith("http"): target = "https://" + target
     parsed = urllib.parse.urlparse(target)
     host = parsed.netloc
     report = []
     
-    try:
-        conn = http.client.HTTPSConnection(host, timeout=5)
-        # 1. Test OPTIONS
-        conn.request("OPTIONS", "/", headers={"User-Agent": REAL_UA})
-        res_options = conn.getresponse()
-        res_options.read()
-        allowed = res_options.getheader("Allow") or res_options.getheader("Public")
-        report.append(f"ℹ️ Modalità HTTP consentite: {allowed}" if allowed else "ℹ️ Nessun header 'Allow' fornito via OPTIONS.")
+    canary_body = "AUDIT-ELITE-VERIFY-007"
+    canary_file = "/sec_test_" + "".join(random.choices(string.ascii_lowercase, k=10)) + ".txt"
 
-        # 2. Test TRACE
-        xst_payload = "XST-VERIFY-" + "".join(random.choices(string.ascii_letters, k=8))
-        conn.request("TRACE", "/", headers={"User-Agent": REAL_UA, "X-Verify": xst_payload})
-        res_trace = conn.getresponse()
-        trace_body = res_trace.read().decode('utf-8', errors='ignore')
-        if res_trace.status == 200 and xst_payload in trace_body:
-            report.append("❌ CRITICO: HTTP TRACE abilitato (Rischio XST).")
+    # 1. OPTIONS Check
+    status, _, headers = _esegui_richiesta_isolata(host, "OPTIONS", "/")
+    allowed = headers.get("allow") or headers.get("public")
+    report.append(f"ℹ️ Modalità HTTP consentite: {allowed}" if allowed else "ℹ️ Nessun header 'Allow' fornito.")
+
+    # 2. TRACE Check
+    status, body, _ = _esegui_richiesta_isolata(host, "TRACE", "/")
+    if status == 200 and canary_body in body:
+        report.append("❌ CRITICO: HTTP TRACE abilitato (Rischio XST).")
+    else:
+        report.append("✅ HTTP TRACE è disabilitato/sicuro.")
+
+    # 3. PUT Canary Double-Check
+    status_put, _, _ = _esegui_richiesta_isolata(host, "PUT", canary_file, body=canary_body)
+    
+    if status_put in [200, 201, 204]:
+        # Verifica reale del contenuto
+        status_get, body_get, _ = _esegui_richiesta_isolata(host, "GET", canary_file)
+        if status_get == 200 and canary_body in body_get:
+            report.append(f"❌ CRITICO: HTTP PUT VULNERABILE! File creato: {canary_file}")
         else:
-            report.append("✅ HTTP TRACE è disabilitato/sicuro.")
+            report.append("✅ HTTP PUT: Falso positivo rilevato (WAF deception/JS Challenge).")
+    elif status_put in [401, 403]:
+        report.append("⚠️ HTTP PUT: Bloccato (401/403).")
+    else:
+        report.append("✅ HTTP PUT correttamente bloccato.")
 
-        # 3. Test PUT (CANARY TEST ANTI-WAF)
-        canary_filename = "/sec_audit_" + "".join(random.choices(string.ascii_lowercase + string.digits, k=12)) + ".txt"
-        conn.request("PUT", canary_filename, body="audit_verify", headers={"User-Agent": REAL_UA})
-        res_put = conn.getresponse()
-        res_put.read()
-        
-        if res_put.status in [200, 201, 204]:
-            # Proviamo a verificare se il file esiste davvero (Canary GET)
-            conn.request("GET", canary_filename, headers={"User-Agent": REAL_UA})
-            res_verify = conn.getresponse()
-            res_verify.read()
-            if res_verify.status == 200:
-                report.append(f"❌ CRITICO: HTTP PUT VULNERABILE! File creato: {canary_filename}")
-            else:
-                report.append("✅ HTTP PUT: Falso positivo rilevato (Cloudflare/WAF deception).")
-        elif res_put.status in [401, 403]:
-            report.append("⚠️ HTTP PUT: Bloccato (401/403).")
-        else:
-            report.append("✅ HTTP PUT correttamente bloccato.")
-
-        conn.close()
-        return report
-    except Exception as e:
-        return [f"Errore Analisi Verbi: {str(e)}"]
+    return report

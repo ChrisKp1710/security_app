@@ -344,21 +344,25 @@ class NetworkTab(ctk.CTkFrame):
             panel_rob = self._rich_render(Panel(rob_text, title="OSINT: Robots.txt Analysis", box=box.ASCII))
             self.dashboard.after(0, lambda: self.log("\n" + panel_rob, "WARNING"))
         
-        # --- HTTP METHODS ---
+        # --- HTTP METHODS & WAF INTEGRITY CHECK ---
         self.dashboard.after(0, lambda: self.log("Validating HTTP methods...", "INFO"))
         verbi = analizza_verbi_http(target)
+        waf_deception = False
+        
         if verbi:
             table_v = Table(title="[ HTTP VERBS AUDIT ]", box=box.ASCII, width=60)
             table_v.add_column("STATUS", width=8)
             table_v.add_column("POLICY RESULT", width=46)
             
             for v in verbi:
-                # Normalizzazione tag
+                # Se rileviamo il falso positivo, alziamo il flag per l'alert finale
+                if "Falso positivo rilevato" in v: waf_deception = True
+                
                 v_tag = "OK" if "✅" in v else ("RISK" if "❌" in v else "INFO")
                 v_msg = v.replace("✅ ", "").replace("❌ ", "").replace("ℹ️ ", "")
                 table_v.add_row(v_tag, escape(v_msg))
             
-            # Stampa con analisi colori riga per riga
+            # Stampa Tabella Verbi
             v_output = self._rich_render(table_v)
             for line in v_output.splitlines():
                 level = "INFO"
@@ -366,6 +370,18 @@ class NetworkTab(ctk.CTkFrame):
                 elif "RISK" in line: level = "DANGER"
                 elif "INFO" in line: level = "WARNING"
                 self.dashboard.after(0, lambda x=line, t=level: self.log(x, t))
+
+        # --- ALERT DI INTEGRITÀ FINALE (Se WAF Deception rilevata) ---
+        if waf_deception:
+            warn_msg = (
+                "SHIELD INTEGRITY ALERT: WAF Deception Detected!\n"
+                "Target firewall attempted to spoof results.\n"
+                "Surgical audit confirmed fake 'Success' signals.\n"
+                "Data above might be partially filtered."
+            )
+            panel_warn = self._rich_render(Panel(warn_msg, title="[!] INTEGRITY WARNING", box=box.ASCII))
+            for line in panel_warn.splitlines():
+                self.dashboard.after(0, lambda x=line: self.log(x, "DANGER"))
             
         self.dashboard.after(0, lambda: self.log_completion("Web/OSINT Recon"))
         self.dashboard.after(0, lambda: self.btn_recon.configure(state="normal"))
