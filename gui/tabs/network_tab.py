@@ -11,19 +11,15 @@ from io import StringIO
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-from rich import box
 from rich.markup import escape
-from logic.network.port_scanner import scansione_porte, ottieni_ip, RISCHIO_PORTE
+from rich import box
+from logic.network.port_scanner import scansione_porte, ottieni_ip
+from logic.network.constants import RISCHIO_PORTE, TOP_PORTS
 from logic.network.ghost_scanner import scansione_porte_ghost
 from logic.network.directory_buster import cerca_directory_nascoste
 from logic.network.http_recon import analizza_headers, analizza_robots, analizza_verbi_http
 from logic.network.ssl_inspector import get_ssl_details
 from gui.config import COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER, COLOR_INFO, COLOR_MUTED
-
-# Lista parziale delle Top Ports più suscettibili (estendibile)
-TOP_PORTS = [
-    21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080, 8443
-] + list(range(8000, 8100)) + list(range(3000, 3100)) # Esempio di espansione intelligente
 
 class NetworkTab(ctk.CTkFrame):
     def __init__(self, master, dashboard, **kwargs):

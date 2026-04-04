@@ -1,11 +1,7 @@
 import socket
 import concurrent.futures
 import time
-
-RISCHIO_PORTE = {
-    21: "ROSSO", 23: "ROSSO", 80: "VERDE", 443: "VERDE",
-    3306: "ROSSO", 3389: "ROSSO", 8080: "GIALLO", 22: "GIALLO", 21: "ROSSO", 25: "GIALLO"
-}
+from logic.network.constants import RISCHIO_PORTE
 
 def analyze_service(banner, porta):
     """
