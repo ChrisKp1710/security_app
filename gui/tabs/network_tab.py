@@ -14,6 +14,7 @@ from rich.table import Table
 from rich import box
 from rich.markup import escape
 from logic.network.port_scanner import scansione_porte, ottieni_ip
+from logic.network.ghost_scanner import scansione_porte_ghost
 from logic.network.directory_buster import cerca_directory_nascoste
 from logic.network.http_recon import analizza_headers, analizza_robots, analizza_verbi_http
 from logic.network.ssl_inspector import get_ssl_details
@@ -51,6 +52,12 @@ class NetworkTab(ctk.CTkFrame):
 
         self.btn_scan = ctk.CTkButton(ctrl_frame, text="SCAN PORTS", height=40, fg_color="#3B8ED0", command=self.toggle_scan)
         self.btn_scan.pack(side="right", padx=5)
+        
+        # --- GHOST MODE TOGGLE ---
+        self.ghost_mode_switch = ctk.CTkSwitch(ctrl_frame, text="GHOST MODE", font=("Roboto", 11, "bold"), 
+                                               progress_color="#7C3AED", command=self.update_ghost_ui)
+        self.ghost_mode_switch.pack(side="right", padx=15)
+        
         self.btn_dir = ctk.CTkButton(ctrl_frame, text="DIR BUST", height=40, fg_color="#4B5563", command=self.avvia_dir)
         self.btn_dir.pack(side="right", padx=5)
         
@@ -66,6 +73,9 @@ class NetworkTab(ctk.CTkFrame):
         self.progress_bar.grid(row=2, column=0, sticky="ew", pady=(10, 5))
         self.lbl_status = ctk.CTkLabel(self, text="System Ready.", text_color="gray", font=("Roboto", 11))
         self.lbl_status.grid(row=3, column=0, sticky="w")
+        
+        self.lbl_stealth_info = ctk.CTkLabel(self, text="", text_color="#A78BFA", font=("Roboto", 11, "italic"))
+        self.lbl_stealth_info.grid(row=3, column=0, sticky="e", padx=20)
 
         # Console log con Font Monospace per allineamento perfetto delle tabelle
         self.console = ctk.CTkTextbox(self, height=450, fg_color="#0F172A", 
@@ -106,6 +116,17 @@ class NetworkTab(ctk.CTkFrame):
         self.console.delete("1.0", "end")
         self.dashboard.reset_results()
         self.btn_export.configure(state="disabled", text_color="gray", border_color="#2D2D2D")
+
+    def update_ghost_ui(self):
+        is_ghost = self.ghost_mode_switch.get()
+        if is_ghost:
+            self.btn_scan.configure(fg_color="#7C3AED", hover_color="#5B21B6") # Purple Stealth
+            self.lbl_stealth_info.configure(text="⚠ GHOST MODE: Evasion Protocol Active (Intentional Delay)")
+            self.log("GHOST PROTOCOL ENGAGED: Infiltration mode will bypass WAF detection.", "WARNING")
+        else:
+            self.btn_scan.configure(fg_color="#3B8ED0", hover_color="#1f538d") # Classic Blue
+            self.lbl_stealth_info.configure(text="")
+            self.log("INDUSTRIAL MODE RESTORED: Full power scanning enabled.", "INFO")
 
     def check_and_clear_logs(self):
         current_input = self.entry_ip.get().strip()
@@ -163,13 +184,22 @@ class NetworkTab(ctk.CTkFrame):
         m_workers = self.dashboard.settings.get("network", "max_workers")
         s_timeout = self.dashboard.settings.get("network", "timeout")
         
-        # Chiamata alla logica di scansione parallela con i settings caricati
+        # DECISORE LOGICA: Standard (Tank) vs Ghost (Stealth)
+        is_ghost = self.ghost_mode_switch.get()
+        
         try:
-            risultati, num_scansionati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso, 
-                                                           stop_event=stop_event, max_workers=m_workers, timeout=s_timeout)
+            if is_ghost:
+                # MOTORE GHOST: Isolato e silenzioso
+                risultati, num_scansionati = scansione_porte_ghost(target, porte, callback_progress=self.aggiorna_progresso, 
+                                                                  stop_event=stop_event)
+            else:
+                # MOTORE STANDARD: Carro armato industriale
+                risultati, num_scansionati = scansione_porte(target, porte, callback_progress=self.aggiorna_progresso, 
+                                                               stop_event=stop_event, max_workers=m_workers, timeout=s_timeout)
         except Exception as e:
             self.dashboard.after(0, lambda: self.log(f"CRITICAL ERROR in Scanner: {str(e)}", "DANGER"))
-            self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0"))
+            color = "#7C3AED" if is_ghost else "#3B8ED0"
+            self.dashboard.after(0, lambda: self.btn_scan.configure(text="SCAN PORTS", fg_color=color))
             return
         
         if stop_event and stop_event.is_set():
@@ -196,7 +226,9 @@ class NetworkTab(ctk.CTkFrame):
         return buf.getvalue().rstrip()
 
     def mostra_risultati_scan(self, risultati, num_scansionati):
-        self.btn_scan.configure(text="SCAN PORTS", fg_color="#3B8ED0")
+        is_ghost = self.ghost_mode_switch.get()
+        color = "#7C3AED" if is_ghost else "#3B8ED0"
+        self.btn_scan.configure(text="SCAN PORTS", fg_color=color)
         stats = {"total": num_scansionati, "identified": 0, "unknown": 0, "high_risk": 0}
         is_smart = self.dashboard.settings.get("network", "smart_log")
         unknown_group = [] 
