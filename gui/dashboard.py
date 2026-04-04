@@ -28,13 +28,17 @@ COLOR_MUTED = "#94A3B8"
 class Dashboard(ctk.CTk):
     def __init__(self):
         super().__init__()
-
-        self.title("Security Toolkit Pro v5.1 - Cyber Ops Edition")
-        self.geometry("1100x900")
         
         # --- BUSINESS LOGIC & SETTINGS ---
         self.settings = SettingsManager()
         self.settings.save_settings() # Crea il file se manca
+        
+        app_name = self.settings.get("app", "name")
+        app_ver = self.settings.get("app", "version")
+        
+        self.title(f"{app_name} v{app_ver} - Cyber Ops Edition")
+        self.geometry("1100x900")
+        
         self.task_manager = TaskManager(max_workers=self.settings.get("network", "max_workers"))
         
         self.grid_columnconfigure(1, weight=1)
@@ -68,7 +72,7 @@ class Dashboard(ctk.CTk):
                                              hover_color=('#3B8ED0', '#1E293B'), command=self.show_crypto)
         self.btn_nav_crypto.grid(row=3, column=0, padx=20, pady=10, sticky="ew")
 
-        self.info_label = ctk.CTkLabel(self.sidebar_frame, text="Enterprise v5.0\nStatus: Online", 
+        self.info_label = ctk.CTkLabel(self.sidebar_frame, text=f"{app_name} v{app_ver}\nStatus: Online", 
                                        font=ctk.CTkFont(size=10), text_color="gray")
         self.info_label.grid(row=5, column=0, padx=20, pady=20)
 
@@ -155,6 +159,10 @@ class Dashboard(ctk.CTk):
     def process_export(self, formats):
         from logic.utils.report_exporter import generate_reports
         
+        # Aggiungiamo i metadati dell'app ai dati del report
+        self.report_data["app_name"] = self.settings.get("app", "name")
+        self.report_data["app_version"] = self.settings.get("app", "version")
+
         # Chiediamo dove salvare (cartella)
         folder = filedialog.askdirectory(title="Select Output Folder")
         if folder:

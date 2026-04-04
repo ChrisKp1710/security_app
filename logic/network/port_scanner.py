@@ -9,21 +9,32 @@ RISCHIO_PORTE = {
 
 def analyze_service(banner, porta):
     """
-    Analizza il banner grezzo per identificare la tecnologia specifica.
-    Trasforma stringhe complesse in identificazioni pulite.
+    Analizza il banner grezzo per identificare la tecnologia specifica e le versioni.
+    Trasforma stringhe complesse in identificazioni pulite e professionali.
     """
     banner_low = banner.lower()
     
-    # --- WEB SERVER ---
-    if "nginx" in banner_low: return f"Web Server (Nginx) - {banner}"
-    if "apache" in banner_low: return f"Web Server (Apache) - {banner}"
-    if "iis" in banner_low or "microsoft-httpapi" in banner_low: return f"Web Server (Microsoft IIS) - {banner}"
-    if "cloudflare" in banner_low: return f"CDN/WAF (Cloudflare) - {banner}"
-    if "netlify" in banner_low: return f"CDN/Hosting (Netlify) - {banner}"
+    # --- WEB SERVER (Extraction logic) ---
+    if "nginx" in banner_low: 
+        ver = banner.split("/")[-1] if "/" in banner else ""
+        return f"Web Server (Nginx) {ver}" if ver else "Web Server (Nginx)"
+    if "apache" in banner_low:
+        ver = banner.split("/")[-1] if "/" in banner else ""
+        return f"Web Server (Apache) {ver}" if ver else "Web Server (Apache)"
+    if "varnish" in banner_low:
+        return f"CDN/Cache (Varnish) - {banner}"
+    if "cloudflare" in banner_low:
+        return "CDN/WAF (Cloudflare Shield)"
+    if "netlify" in banner_low:
+        return "Hosting Edge (Netlify)"
+    if "iis" in banner_low or "microsoft-httpapi" in banner_low:
+        return "Web Server (MS IIS)"
     
-    # --- SSH ---
+    # --- SSH (Precision Extraction) ---
     if "ssh" in banner_low:
-        ver = banner.split("-")[-1] if "-" in banner else banner
+        # Pulisce protocolli come SSH-2.0-OpenSSH_8.2p1
+        parts = banner.split("-")
+        ver = parts[-1] if len(parts) > 2 else banner
         return f"SSH Service ({ver.strip()})"
         
     # --- DATABASE ---
@@ -33,16 +44,16 @@ def analyze_service(banner, porta):
         return "Database (PostgreSQL)"
         
     # --- MAIL / FTP ---
-    if "ftp" in banner_low or "220" in banner and porta == 21:
-        return f"File Transfer (FTP) - {banner}"
-    if "smtp" in banner_low or "esmpt" in banner_low:
-        return f"Mail Server (SMTP) - {banner}"
-    if "pop3" in banner_low or "+ok" in banner_low:
+    if porta == 21 or "ftp" in banner_low:
+        return f"File Transfer (FTP) - {banner[:30]}"
+    if porta == 25 or "smtp" in banner_low:
+        return f"Mail Server (SMTP) - {banner[:30]}"
+    if porta == 110 or "pop3" in banner_low:
         return "Mail Server (POP3)"
 
     # Fallback: Se non riconosciamo nulla ma c'è testo
     if len(banner) > 3:
-        return f"Service Detected: {banner}"
+        return f"Service Detected: {banner[:40]}"
     
     # Se il banner è vuoto, indovina dalla porta
     if porta == 80: return "HTTP Web Server (No Banner)"

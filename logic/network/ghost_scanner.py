@@ -2,7 +2,7 @@ import random
 import time
 from logic.network.port_scanner import ottieni_ip, _scan_single_port
 
-def scansione_porte_ghost(target, range_porte, callback_progress=None, stop_event=None, jitter_range=(1.5, 4.0)):
+def scansione_porte_ghost(target, range_porte, callback_progress=None, stop_event=None, jitter_range=(0.7, 2.2)):
     """
     Esegue una scansione Stealth 'GHOST MODE'.
     - Ordine casuale delle porte (Shuffle)

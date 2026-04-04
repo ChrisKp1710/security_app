@@ -13,12 +13,17 @@ from rich.panel import Panel
 from rich.table import Table
 from rich import box
 from rich.markup import escape
-from logic.network.port_scanner import scansione_porte, ottieni_ip
+from logic.network.port_scanner import scansione_porte, ottieni_ip, RISCHIO_PORTE
 from logic.network.ghost_scanner import scansione_porte_ghost
 from logic.network.directory_buster import cerca_directory_nascoste
 from logic.network.http_recon import analizza_headers, analizza_robots, analizza_verbi_http
 from logic.network.ssl_inspector import get_ssl_details
 from gui.config import COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER, COLOR_INFO, COLOR_MUTED
+
+# Lista parziale delle Top Ports più suscettibili (estendibile)
+TOP_PORTS = [
+    21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 993, 995, 1723, 3306, 3389, 5900, 8080, 8443
+] + list(range(8000, 8100)) + list(range(3000, 3100)) # Esempio di espansione intelligente
 
 class NetworkTab(ctk.CTkFrame):
     def __init__(self, master, dashboard, **kwargs):
@@ -26,6 +31,7 @@ class NetworkTab(ctk.CTkFrame):
         self.dashboard = dashboard
         self.last_target = ""
         self.wordlist_path = None
+        self.scan_start_time = None
         self.setup_ui()
 
     def setup_ui(self):
@@ -175,10 +181,14 @@ class NetworkTab(ctk.CTkFrame):
 
         # Ripristiniamo il pulsante in modalità STOP ora che il task è partito
         self.dashboard.after(0, lambda: self.btn_scan.configure(text="STOP SCAN", fg_color="#EF4444", state="normal"))
-        self.dashboard.after(0, lambda: self.log(f"TARGET RESOLVED: {ip}", "SUCCESS"))
+        self.scan_start_time = time.time()
         
         mode = self.scan_mode.get()
-        porte = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 8080, 8443] if mode == "Quick Scan" else (1, 1000)
+        if mode == "Quick Scan":
+            porte = [21, 22, 23, 25, 53, 80, 110, 139, 443, 445, 3306, 3389, 8080, 8443]
+        else:
+            # PROFESSIONAL TOP PORTS: Focus sulle porte più comuni invece che lineare 1-1000
+            porte = TOP_PORTS
         
         # Carichiamo i parametri tecnici dai settings
         m_workers = self.dashboard.settings.get("network", "max_workers")
@@ -210,8 +220,20 @@ class NetworkTab(ctk.CTkFrame):
 
     def aggiorna_progresso(self, corrente, totale, porta_attuale):
         perc = corrente / totale
+        elapsed = time.time() - self.scan_start_time
+        
+        # CALCOLO ETA: (Tempo trascorso / Porte fatte) * Porte rimanenti
+        if corrente > 0:
+            avg_time = elapsed / corrente
+            remaining = totale - corrente
+            eta_seconds = int(avg_time * remaining)
+            eta_str = str(datetime.timedelta(seconds=eta_seconds))
+        else:
+            eta_str = "--:--:--"
+            
+        status_text = f"Probing: {porta_attuale} | Progress: {corrente}/{totale} | ETA: {eta_str}"
         self.dashboard.after(0, lambda: self.progress_bar.set(perc))
-        self.dashboard.after(0, lambda: self.lbl_status.configure(text=f"Probing port {porta_attuale}..."))
+        self.dashboard.after(0, lambda: self.lbl_status.configure(text=status_text))
 
     def _rich_render(self, renderable, title=None, box_style=box.ASCII):
         """Motore di rendering Rich con stabilità ASCII totale."""
@@ -264,13 +286,20 @@ class NetworkTab(ctk.CTkFrame):
         
         flush_unknown()
         
-        # Stampa Tabella con analisi riga per riga per colori
+        # Stampa Tabella con analisi riga per riga per colori (Triple Alert System)
         table_output = self._rich_render(table)
         for line in table_output.splitlines():
             level = "INFO"
-            if "VERIFIED" in line: level = "SUCCESS"
-            elif "STEALTH" in line: level = "WARNING"
-            if "Potential" in line or "Ghost" in line: level = "WARNING"
+            
+            # LOGICA CROMATICA PROFESSIONALE
+            if "VERIFIED" in line:
+                # Se è verificato, controlliamo se è una porta pericolosa (ROSSO)
+                is_danger = any(f" {p} " in f" {line} " for p, r in RISCHIO_PORTE.items() if r == "ROSSO")
+                level = "DANGER" if is_danger else "SUCCESS"
+            elif "STEALTH" in line or "UNRES" in line or "Silent" in line or "Ghost" in line:
+                # Sospetto inganno o porta silente -> GIALLO
+                level = "WARNING"
+                
             self.log(line, level)
 
         # --- EXECUTIVE SUMMARY RIQUADRATO (ASCII ROBUSTO) ---

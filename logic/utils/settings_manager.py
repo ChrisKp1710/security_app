@@ -26,6 +26,10 @@ class SettingsManager:
             "ui": {
                 "theme": "dark-blue",
                 "font_family": "Roboto"
+            },
+            "app": {
+                "version": "6.3",
+                "name": "Security Toolkit Pro"
             }
         }
 
