@@ -1,68 +1,84 @@
-# 🛡️ Security Toolkit Pro v4.5 - Enterprise Edition
+# 🛡️ Security Toolkit Pro v6.8 - Elite Audit & Stealth Recon
 
-![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)
+![Python Version](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![UI Framework](https://img.shields.io/badge/UI-CustomTkinter-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-green.svg)
-![Security](https://img.shields.io/badge/Security-CSPRNG-orange.svg)
+![Stealth Protocol](https://img.shields.io/badge/Stealth-Ghost_Mode-orange.svg)
+![Audit Accuracy](https://img.shields.io/badge/Accuracy-Elite-green.svg)
 
-**Security Toolkit Pro** è una suite avanzata di strumenti per la cyber-sicurezza e la ricognizione web, progettata con un approccio "Smart" per ridurre i falsi positivi e fornire analisi accurate. Sviluppata per scopi didattici e professionali, l'app combina una logica di scansione intelligente con un'interfaccia moderna in stile 2025/26.
+**Security Toolkit Pro** è una suite di sicurezza industriale progettata per l'auditor professionista che non accetta compromessi. Basata sulla filosofia del **"Puntatore Laser"**, questa suite combina un'estetica premium con algoritmi di ricognizione d'élite per garantire risultati certi ed eludere i sistemi di difesa più avanzati.
 
-## 🚀 Perché questo tool è diverso?
+## 🚀 Perché questo tool è lo Standard di eccellenza?
 
-A differenza dei comuni scanner amatoriali, questo toolkit implementa algoritmi di **calibrazione dinamica** per interpretare correttamente le risposte dei server moderni (React, SPA, WAF, Cloudflare).
+A differenza degli scanner tradizionali, il nostro toolkit è stato sviluppato con una profonda **"Cognizione di Causa"**, integrando protocolli di evasione e verifica che lo rendono invisibile e infallibile.
 
-### 🧠 Logica Smart & Anti-False Positive
-*   **Calibration Engine**: Prima di ogni scansione, il tool analizza il comportamento del server (404, 200 catch-all, 403 blocks o 301 redirects) per creare una "baseline" di confronto.
-*   **Smart Redirect Filter**: Identifica se un redirect è un "soft-fail" generico verso la login o se punta a una risorsa reale e specifica, rivelando la struttura nascosta del sito.
-*   **WAF Detection**: Riconosce i blocchi preventivi dei firewall (403 Forbidden) evitando di inondare il report di risultati inutili.
+### 🥷 1. Ghost Mode Protocol (Stealth Evasion)
+Il cuore della nostra suite per le operazioni silenti.
+- **Adaptive Jitter**: Ritardi casuali intelligenti che simulano la navigazione umana, rendendo il traffico indistinguibile dai bot.
+- **Port Shuffling (Fisher-Yates)**: Rimescolamento casuale dell'ordine di scansione per rompere le firme di rilevamento dei Firewall.
+- **Low-Noise Profile**: Operazioni sequenziali mirate per mappare il target senza allertare i sistemi IDS/IPS.
 
-## ✨ Caratteristiche Principali
+### ⚙️ 2. Industrial Precision Engine (Accuracy First)
+Motore multifilo ad alta velocità con garanzia di veridicità del dato.
+- **Double-Handshake Verification**: Ogni porta aperta viene validata tramite un probe applicativo reale. **Se non c'è un banner, non è considerato aperto.**
+- **Deception Filtering**: Identificazione automatica del "Firewall Ghosting", eliminando i falsi positivi generati dai sistemi di protezione.
 
-### 🌐 Network Operations Center
-*   **Intelligent Port Scanner**: Non solo rileva porte aperte, ma esegue un **Service Fingerprinting** per identificare tecnologie come Nginx, Apache, SSH, MySQL e la loro versione.
-*   **Directory Brute-Force**: Enumerazione di directory con filtraggio intelligente basato sulla dimensione della risposta e sulla destinazione dei redirect.
-*   **Deep Reconnaissance**: 
-    *   **Security Headers Analysis**: Valutazione dell'hardening del server (HSTS, CSP, X-Frame-Options, ecc.) con punteggio di sicurezza (Security Score).
-    *   **Robots.txt Discovery**: Analisi automatica dei percorsi sensibili esposti nel file robots.txt.
+### 🕵️‍♂️ 3. Web Recon Masterclass
+Audit profondo della superfice web del target.
+- **Security Header Audit**: Valutazione dell'hardening (HSTS, CSP, XSS protection) con punteggio di sicurezza dinamico.
+- **SSL/TLS Intelligence**: Estrazione profonda dei dati del certificato e scoperta di sottodomini tramite **SAN Discovery**.
+- **Smart 404 Detection (v2.0)**: Algoritmo di calibrazione per il directory busting che filtra i "catch-all" di SPA e moderni WAF.
 
-### 🔐 Crypto Lab (Laboratorio Crittografico)
-*   **CSPRNG Password Generator**: Generazione di chiavi basata sul modulo `secrets` di Python per garantire l'imprevedibilità crittografica.
-*   **Password Strength Meter**: Analisi in tempo reale dell'entropia (bit) e stima del tempo necessario per un attacco Brute Force professionale.
-*   **File Integrity**: Calcolo hash SHA-256 con lettura a blocchi per gestire file di grandi dimensioni senza saturare la memoria.
+## 📊 Professional Reporting System
+Generazione istantanea di audit report pronti per la consegna al cliente:
+- **Interactive Grid HTML**: Layout responsive con cromie coordinate al rischio.
+- **JSON Metadata**: Per l'integrazione con pipeline di sicurezza esterne.
+- **Cyber ASCII TXT**: Log ad alta fedeltà per archivio testuale.
 
-### 🎨 Interfaccia Utente (UI/UX)
-*   **Modern Dark Mode**: Basata su `CustomTkinter`, con angoli arrotondati, animazioni di feedback e gerarchia visiva chiara.
-*   **Multi-threading**: Tutte le operazioni pesanti corrono in background per garantire un'interfaccia sempre fluida e reattiva.
+## 🛠 Installazione & Start (Professional Setup)
 
-## 🛠 Installazione
+Per garantire la massima stabilità e isolamento del toolkit, si raccomanda l'uso di un **Virtual Environment (venv)**.
 
-### 1. Clonazione del repository
+### 1. Clonazione e Preparazione
 ```bash
 git clone https://github.com/tuo-username/security_app.git
 cd security_app
 ```
 
-### 2. Installazione dipendenze
-Il progetto richiede `customtkinter` per la parte grafica:
+### 2. Creazione & Attivazione Virtual Env (venv)
+- **Windows (PowerShell/CMD)**:
+  ```powershell
+  python -m venv venv
+  .\venv\Scripts\activate
+  ```
+- **macOS / Linux**:
+  ```bash
+  python3 -m venv venv
+  source venv/bin/activate
+  ```
+
+### 3. Aggiornamento Pip & Dipendenze
+Una volta attivato il venv, procedi all'aggiornamento dei core tools e delle librerie d'élite:
 ```bash
-pip install customtkinter
+python -m pip install --upgrade pip
+pip install -r requirements.txt
 ```
 
-### 3. Avvio
+### 4. Avvio Suite Elite
 ```bash
-python3 main.py
+python main.py
 ```
 
-## 📖 Utilizzo Professionale
+## 📖 Utilizzo Professionale (Esempi)
+1. Inserisci il target: `example.com`
+2. Scegli il protocollo: **Industrial Engine** (Velocità) o **Ghost Mode** (Stealth)
+3. Esporta i risultati in **Professional HTML Audit Report**
 
-1.  **Recon**: Inserisci un dominio (es. `https://bersaglio.com`).
-2.  **Scan**: Esegui prima il **Port Scan** per identificare i servizi esposti.
-3.  **Deep Recon**: Clicca su **🛡️ RECON** per analizzare la corazza di sicurezza del server (Headers).
-4.  **Directory Busting**: Se il server è un sito web, avvia il **DIR BUST** per cercare punti di ingresso non indicizzati.
+## 📚 Documentazione Architetturale
+Il codice è strutturato secondo standard di modularità senior. Per approfondimenti tecnici su ogni modulo, consulta la cartella dedicata:
+- **[Consult Docs (PHILOSOPHY.md)](./docs/PHILOSOPHY.md)**
 
-## ⚠️ Disclaimer Legale
-
-**IMPORTANTE**: Questo software è creato esclusivamente per scopi educativi e per attività di Ethical Hacking autorizzate. L'utilizzo di questo strumento verso bersagli senza previa autorizzazione scritta è illegale. L'autore non si assume alcuna responsabilità per l'uso improprio del software.
+## ⚠️ Disclaimer & Ethics
+**IMPORTANTE**: Questo software è destinato esclusivamente ad attività di Ethical Hacking autorizzate. L'uso verso bersagli senza previa autorizzazione è illegale. L'autore non si assume responsabilità per l'uso improprio. **Professionalità significa Etica.**
 
 ---
-*Sviluppato con passione per la community di Cyber Security.*
+*Sviluppato per chi cerca la perfezione nell'audit di sicurezza.*
