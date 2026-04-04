@@ -39,11 +39,11 @@ class NetworkTab(ctk.CTkFrame):
         card_target.grid_columnconfigure(1, weight=1)
         
         ctk.CTkLabel(card_target, text="Target Host:", font=("Roboto", 14, "bold")).grid(row=0, column=0, padx=20, pady=25)
-        self.entry_ip = ctk.CTkEntry(card_target, placeholder_text="e.g. epicode.com", height=45, font=("Menlo", 13))
+        self.entry_ip = ctk.CTkEntry(card_target, placeholder_text="e.g. example.com", height=45, font=("Menlo", 13))
         self.entry_ip.grid(row=0, column=1, sticky="ew", padx=(0, 20), pady=25)
         
-        default_target = self.dashboard.settings.get("network", "default_target")
-        self.entry_ip.insert(0, default_target)
+        self.target_var = ctk.StringVar(value=self.dashboard.settings.get("network", "default_target"))
+        self.entry_ip.insert(0, self.target_var.get())
 
         ctrl_frame = ctk.CTkFrame(self, fg_color="transparent")
         ctrl_frame.grid(row=1, column=0, sticky="ew", pady=(0, 10))

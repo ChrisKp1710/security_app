@@ -1,3 +1,10 @@
+"""
+FILE: scanner.py
+MODULE: Network Intelligence
+ROLE: Analisi e fingerprinting dei servizi di rete.
+DESCRIPTION: Gestisce la scansione delle porte, il banner grabbing e la classificazione dei servizi rilevati.
+"""
+
 import socket
 import concurrent.futures
 import time

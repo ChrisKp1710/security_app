@@ -1,3 +1,9 @@
+"""
+FILE: http_recon.py
+MODULE: Web Intelligence
+ROLE: Analizzatore di sicurezza HTTP e OSINT.
+DESCRIPTION: Esegue l'audit degli header di sicurezza, dei file robots.txt e dei verbi HTTP critici simulando un browser reale.
+"""
 import http.client
 import urllib.parse
 import random

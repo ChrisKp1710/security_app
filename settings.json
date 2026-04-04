@@ -3,7 +3,7 @@
         "max_workers": 50,
         "timeout": 0.6,
         "smart_log": true,
-        "default_target": "epicode.com"
+        "default_target": "example.com"
     },
     "crypto": {
         "default_charset": "Alpha Lower (a-z)",

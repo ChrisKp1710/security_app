@@ -17,7 +17,7 @@ class SettingsManager:
                 "max_workers": 50,
                 "timeout": 0.6,
                 "smart_log": True,
-                "default_target": "epicode.com"
+                "default_target": "example.com"
             },
             "crypto": {
                 "default_charset": "Alpha Lower (a-z)",

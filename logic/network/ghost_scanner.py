@@ -1,13 +1,22 @@
+"""
+FILE: ghost_scanner.py
+MODULE: Stealth Operations
+ROLE: Motore di infiltrazione silente (Evasion Protocol).
+DESCRIPTION: Utilizza Adaptive Jitter e Port Shuffling per eludere IDS/IPS e WAF moderni.
+"""
 import random
 import time
 from logic.network.port_scanner import ottieni_ip, _scan_single_port
 
 def scansione_porte_ghost(target, range_porte, callback_progress=None, stop_event=None, jitter_range=(0.7, 2.2)):
     """
-    Esegue una scansione Stealth 'GHOST MODE'.
-    - Ordine casuale delle porte (Shuffle)
-    - Singolo thread (Sequenziale)
-    - Jitter adattivo tra ogni porta
+    Esegue un audit stealth 'GHOST MODE'.
+    :param target: Host da scansionare.
+    :param range_porte: Lista o range di porte.
+    :param callback_progress: Funzione callback per il feedback UI.
+    :param stop_event: Evento per l'interruzione manuale.
+    :param jitter_range: Intervallo di ritardo casuale (s) tra ogni sonda.
+    :return: Risultati verificati e conteggio scansionato.
     """
     clean_host = target.strip().replace("https://", "").replace("http://", "").split("/")[0]
     ip = ottieni_ip(target)

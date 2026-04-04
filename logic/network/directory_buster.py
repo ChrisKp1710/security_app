@@ -1,11 +1,18 @@
+"""
+FILE: directory_buster.py
+MODULE: Resource Discovery
+ROLE: Analizzatore di directory e file nascosti (Wordlist based).
+DESCRIPTION: Esegue la ricerca di risorse sul server utilizzando la tecnica 'Smart 404 Detection' per distinguere tra veri file e risposte 'Catch-All' di SPA o WAF.
+"""
 import http.client
 import uuid
 
 def cerca_directory_nascoste(target, wordlist_path=None):
     """
-    Cerca cartelle comuni su un sito web con logica "Smart 404 Detection"
-    per evitare falsi positivi su siti React/SPA.
-    Accetta una wordlist esterna opzionale.
+    Esegue un audit delle directory nascoste sul target.
+    :param target: Host o URL da scansionare.
+    :param wordlist_path: Percorso opzionale per una wordlist personalizzata.
+    :return: Lista di directory/file trovati o None in caso di errore critico.
     """
     # Lista di cartelle comuni da cercare (Fallback)
     default_wordlist = [

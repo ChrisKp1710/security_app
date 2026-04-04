@@ -1,4 +1,9 @@
-# logic/network/constants.py
+"""
+FILE: constants.py
+MODULE: Network Infrastructure
+ROLE: Repository centrale delle costanti e mappatura dei rischi.
+DESCRIPTION: Definisce le priorità di scansione (Top Ports) e la classificazione cromatico-professionale dei rischi (Verde/Giallo/Rosso).
+"""
 
 # --- MAPPATURA RISCHI PORTE ---
 # ROSSO: Pericolo Critico (Dati in chiaro, vulnerabilità note)

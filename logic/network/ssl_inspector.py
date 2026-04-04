@@ -1,3 +1,9 @@
+"""
+FILE: ssl_inspector.py
+MODULE: SSL/TLS Intelligence
+ROLE: Analizzatore dei certificati di sicurezza.
+DESCRIPTION: Esegue l'handshake TLS/SSL per estrarre dettagli tecnici, date di scadenza e Subject Alternative Names (SANs) per la scoperta di sottodomini.
+"""
 import ssl
 import socket
 import datetime
@@ -6,7 +12,8 @@ from urllib.parse import urlparse
 def get_ssl_details(target):
     """
     Analizza il certificato SSL del target per estrarre informazioni di Intelligence.
-    Focus su SANs (Subdomains) e Validità.
+    :param target: Host o URL da ispezionare.
+    :return: Dizionario con dettagli del certificato o messaggio di errore.
     """
     # Pulizia target
     if "://" in target:
