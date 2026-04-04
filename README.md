@@ -4,6 +4,7 @@
 ![UI Framework](https://img.shields.io/badge/UI-CustomTkinter-blue.svg)
 ![Stealth Protocol](https://img.shields.io/badge/Stealth-Ghost_Mode-orange.svg)
 ![Audit Accuracy](https://img.shields.io/badge/Accuracy-Elite-green.svg)
+![Licenza MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 **Security Toolkit Pro** è una suite di sicurezza industriale progettata per l'auditor professionista che non accetta compromessi. Basata sulla filosofia del **"Puntatore Laser"**, questa suite combina un'estetica premium con algoritmi di ricognizione d'élite per garantire risultati certi ed eludere i sistemi di difesa più avanzati.
 
@@ -80,5 +81,12 @@ Il codice è strutturato secondo standard di modularità senior. Per approfondim
 ## ⚠️ Disclaimer & Ethics
 **IMPORTANTE**: Questo software è destinato esclusivamente ad attività di Ethical Hacking autorizzate. L'uso verso bersagli senza previa autorizzazione è illegale. L'autore non si assume responsabilità per l'uso improprio. **Professionalità significa Etica.**
 
+## ⚖️ Licenza
+Questo progetto è rilasciato sotto la **[Licenza MIT](./LICENSE)**. 
+
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+La licenza MIT permette l'uso, la modifica e la distribuzione del software, a condizione che l'avviso di copyright e la dichiarazione di autorizzazione siano inclusi in tutte le copie o parti sostanziali del software. **Il software viene fornito "così com'è", senza garanzie di alcun tipo.**
+
 ---
-*Sviluppato per chi cerca la perfezione nell'audit di sicurezza.*
+*Sviluppato con passione per l'eccellenza nella Cyber Security (v6.11).*
