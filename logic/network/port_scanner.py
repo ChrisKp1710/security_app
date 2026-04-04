@@ -60,46 +60,54 @@ def ottieni_ip(target):
         return None
 
 def _scan_single_port(ip, porta, clean_host, stop_event=None, timeout=0.6):
-    """Esegue la scansione di una singola porta e restituisce il risultato."""
+    """Esegue la scansione di una singola porta con Double-Handshake Verification."""
     try:
         if stop_event and stop_event.is_set():
             return None
             
-        # Piccolo ritardo per non saturare la banda/WAF (Anti-DDoS Protection)
         time.sleep(0.005) 
-        
-        if stop_event and stop_event.is_set():
-            return None
         
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
             s.settimeout(timeout)
             res = s.connect_ex((ip, porta))
             if res == 0:
                 raw_banner_text = ""
+                verified = False
                 try:
-                    # Timeout dedicato per il banner (più breve per non bloccare)
-                    s.settimeout(1.0) 
-                    req = f"HEAD / HTTP/1.1\r\nHost: {clean_host}\r\nUser-Agent: SecurityScanner/1.0\r\nConnection: close\r\n\r\n"
-                    s.send(req.encode())
+                    # TENTA BANNER GRABBING (Double Handshake)
+                    s.settimeout(1.2) 
+                    # Se è una porta web nota, mandiamo un probe HTTP
+                    if porta in [80, 443, 8080, 8443]:
+                        req = f"HEAD / HTTP/1.1\r\nHost: {clean_host}\r\nConnection: close\r\n\r\n"
+                        s.send(req.encode())
+                    
                     raw_data = s.recv(1024)
-                    decoded = raw_data.decode('utf-8', errors='ignore')
-                    lines = decoded.split('\r\n')
-                    first_line = lines[0].strip()
-                    server_header = next((line for line in lines if line.lower().startswith("server:")), None)
-                    if server_header:
-                        raw_banner_text = server_header.split(":", 1)[1].strip()
-                    elif first_line:
-                        raw_banner_text = first_line
-                    else:
-                        raw_banner_text = decoded.strip()[:50]
-                except (socket.timeout, socket.error, ConnectionError):
+                    if raw_data:
+                        decoded = raw_data.decode('utf-8', errors='ignore')
+                        verified = True
+                        lines = decoded.split('\r\n')
+                        first_line = lines[0].strip()
+                        server_header = next((line for line in lines if line.lower().startswith("server:")), None)
+                        if server_header:
+                            raw_banner_text = server_header.split(":", 1)[1].strip()
+                        elif first_line:
+                            raw_banner_text = first_line
+                        else:
+                            raw_banner_text = decoded.strip()[:50]
+                except (socket.timeout, socket.error):
                     pass
                 
-                raw_banner_text = ''.join(c for c in raw_banner_text if c.isprintable())[:80]
-                descrizione_servizio = analyze_service(raw_banner_text, porta)
-                colore = RISCHIO_PORTE.get(porta, "GIALLO")
-                return (porta, colore, descrizione_servizio)
-    except (socket.timeout, socket.error, ConnectionError, OSError):
+                if verified:
+                    raw_banner_text = ''.join(c for c in raw_banner_text if c.isprintable())[:80]
+                    descrizione_servizio = analyze_service(raw_banner_text, porta)
+                    colore = RISCHIO_PORTE.get(porta, "GIALLO")
+                else:
+                    # PORTA APERTA MA SILENTE (Possibile Firewall Ghost o Stealth Service)
+                    descrizione_servizio = "Potential Firewall Ghost / Silent"
+                    colore = "GIALLO"
+                
+                return (porta, colore, descrizione_servizio, verified)
+    except Exception:
         pass
     return None
 

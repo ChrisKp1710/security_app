@@ -82,12 +82,15 @@ class Dashboard(ctk.CTk):
         self.show_home()
 
     def reset_results(self):
-        """Inizializza o resetta la struttura dati dei risultati."""
+        """Inizializza o resetta la struttura dati dei risultati per un nuovo target."""
         self.report_data = {
             "target": "N/A",
             "timestamp": "",
             "scans": [],
             "recon": {"score": 0, "headers": [], "robots": []},
+            "ssl": {}, # Dettagli certificato
+            "http_methods": [], # Audit verbi HTTP
+            "waf_alert": False, # Flag integrità WAF
             "directories": []
         }
 

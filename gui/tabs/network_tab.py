@@ -213,18 +213,22 @@ class NetworkTab(ctk.CTkFrame):
             table.add_row(escape(p_text), "UNRES", "Silent/Firewalled")
             unknown_group.clear()
 
-        for p, c, b in risultati:
-            self.dashboard.report_data["scans"].append({"port": p, "risk": c, "service": b})
-            if b == "Unknown Service":
-                stats["unknown"] += 1
-                if is_smart: unknown_group.append(p)
-                else: table.add_row(escape(str(p)), "UNKNOWN", "No response")
-            else:
-                flush_unknown()
-                stats["identified"] += 1
-                status_label = "HIGH-R" if c == "ROSSO" else ("SAFE" if c == "VERDE" else "IDENT")
-                if c == "ROSSO": stats["high_risk"] += 1
-                table.add_row(escape(str(p)), status_label, escape(b[:30]))
+        num_stealth = 0
+        for p, c, b, v in risultati:
+            # Salvataggio dati report
+            self.dashboard.report_data["scans"].append({"port": p, "risk": c, "service": b, "verified": v})
+            
+            if not v:
+                num_stealth += 1
+                if is_smart and b == "Potential Firewall Ghost / Silent":
+                    unknown_group.append(p)
+                    continue
+            
+            flush_unknown()
+            status_label = "VERIFIED" if v else "STEALTH"
+            stats["identified"] += 1 if v else 0
+            if c == "ROSSO": stats["high_risk"] += 1
+            table.add_row(escape(str(p)), status_label, escape(b[:34]))
         
         flush_unknown()
         
@@ -232,16 +236,16 @@ class NetworkTab(ctk.CTkFrame):
         table_output = self._rich_render(table)
         for line in table_output.splitlines():
             level = "INFO"
-            if "HIGH-R" in line: level = "DANGER"
-            elif "SAFE" in line: level = "SUCCESS"
-            elif "UNRES" in line or "UNKNOWN" in line: level = "WARNING"
+            if "VERIFIED" in line: level = "SUCCESS"
+            elif "STEALTH" in line: level = "WARNING"
+            if "Potential" in line or "Ghost" in line: level = "WARNING"
             self.log(line, level)
 
         # --- EXECUTIVE SUMMARY RIQUADRATO (ASCII ROBUSTO) ---
         summary_content = (
             f"TARGET SCOPE   : {stats['total']} ports\n"
-            f"IDENTIFIED     : {stats['identified']} services\n"
-            f"UNIDENTIFIED   : {stats['unknown']} ports"
+            f"VERIFIED OPEN  : {stats['identified']} services\n"
+            f"STEALTH/SILENT : {num_stealth} ports"
         )
         if stats['high_risk'] > 0:
             summary_content += f"\n\n[!] SECURITY ALERT: {stats['high_risk']} Critical Points!"
@@ -251,10 +255,14 @@ class NetworkTab(ctk.CTkFrame):
             tag = "DANGER" if "ALERT" in line else "INFO"
             self.log(line, tag)
         
-        # WAF DETECTION
-        if stats['total'] > 10 and (stats['unknown'] / stats['total']) > 0.4:
-            waf_msg = "SHIELD ACTIVE: Firewall/WAF Detected!\nTarget is masking services."
-            panel_waf = self._rich_render(Panel(waf_msg, title="SHIELD", box=box.ASCII), box_style=box.ASCII)
+        # WAF/FIREWALL NOISE DETECTION
+        if num_stealth > 3:
+            waf_msg = (
+                "SHIELD ACTIVE: Multiple Stealth Ports Detected!\n"
+                "Firewall is likely spoofing open states (Ghosting).\n"
+                "Only VERIFIED ports are confirmed 100% active."
+            )
+            panel_waf = self._rich_render(Panel(waf_msg, title="[!] FIREWALL SPOOFING", box=box.ASCII), box_style=box.ASCII)
             for line in panel_waf.splitlines():
                 self.log(line, "WARNING")
         
@@ -321,6 +329,9 @@ class NetworkTab(ctk.CTkFrame):
         table_h.add_column("STATUS", width=10)
         table_h.add_column("AUDIT FINDING", width=44)
         
+        # Salviamo i dati per il report
+        self.dashboard.report_data["recon"] = {"score": score, "headers": report, "robots": []}
+        
         for l in report:
             tag = "PASS" if "✅" in l else ("WARN" if "⚠️" in l else "MISSING")
             clean_msg = l.replace("✅ ", "").replace("⚠️ ", "").replace("❌ ", "")
@@ -340,6 +351,7 @@ class NetworkTab(ctk.CTkFrame):
         if stop_event and stop_event.is_set(): return
         
         if robots:
+            self.dashboard.report_data["recon"]["robots"] = robots
             rob_text = "\n".join([f"-> {p}" for p in robots])
             panel_rob = self._rich_render(Panel(rob_text, title="OSINT: Robots.txt Analysis", box=box.ASCII))
             self.dashboard.after(0, lambda: self.log("\n" + panel_rob, "WARNING"))
@@ -350,6 +362,7 @@ class NetworkTab(ctk.CTkFrame):
         waf_deception = False
         
         if verbi:
+            self.dashboard.report_data["http_methods"] = verbi
             table_v = Table(title="[ HTTP VERBS AUDIT ]", box=box.ASCII, width=60)
             table_v.add_column("STATUS", width=8)
             table_v.add_column("POLICY RESULT", width=46)
@@ -373,6 +386,7 @@ class NetworkTab(ctk.CTkFrame):
 
         # --- ALERT DI INTEGRITÀ FINALE (Se WAF Deception rilevata) ---
         if waf_deception:
+            self.dashboard.report_data["waf_alert"] = True
             warn_msg = (
                 "SHIELD INTEGRITY ALERT: WAF Deception Detected!\n"
                 "Target firewall attempted to spoof results.\n"
@@ -429,4 +443,5 @@ class NetworkTab(ctk.CTkFrame):
             for line in sans_output.splitlines():
                 self.log(line, "INFO")
             
+        self.dashboard.report_data["ssl"] = data
         self.log_completion("SSL Inspection")
